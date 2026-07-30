@@ -1,9 +1,8 @@
 name: Flox
 description: Reproducible dev environments using Flox — install flox, activate environments, and run commands
-author: https://github.com/flox
+author: https://github.com/imkarrer
 requirements:
-  - curl
-  - sudo
+  - bash
 configuration:
   properties:
     command:
@@ -29,11 +28,6 @@ configuration:
       type: string
       default: ""
       description: Path to directory containing a .flox/ environment
-    environment-vars:
-      type: array
-      items:
-        type: string
-      description: Additional environment variables for the activation
     disable-metrics:
       type: boolean
       default: true

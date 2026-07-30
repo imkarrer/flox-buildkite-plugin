@@ -3,30 +3,38 @@ set -euo pipefail
 
 INSTALL="${BUILDKITE_PLUGIN_FLOX_INSTALL:-true}"
 
-if [[ "$INSTALL" == "false" ]]; then
-  if ! command -v flox &>/dev/null; then
-    echo "+++ :flox: flox not found and install is disabled"
-    exit 1
-  fi
-  echo "--- :flox: Using pre-installed flox"
+if command -v flox &>/dev/null; then
+  echo "--- :flox: Using pre-installed flox ($(flox --version 2>/dev/null || echo 'version unknown'))"
   exit 0
 fi
 
-if command -v flox &>/dev/null; then
-  echo "--- :flox: flox already installed, skipping installation"
-  export FLOX_ALREADY_INSTALLED=true
-  exit 0
+if [[ "$INSTALL" == "false" ]]; then
+  echo "+++ :flox: flox not found and install is disabled"
+  echo "Set install: true in your plugin config, or use a pre-baked agent image with flox installed."
+  echo "See https://github.com/imkarrer/flox-buildkite-plugin#docker"
+  exit 1
 fi
 
 echo "--- :flox: Installing flox"
 
+MISSING=()
+command -v curl &>/dev/null || MISSING+=("curl")
+command -v sudo &>/dev/null || MISSING+=("sudo")
+
+if [[ ${#MISSING[@]} -gt 0 ]]; then
+  echo "+++ :flox: Missing prerequisites: ${MISSING[*]}"
+  echo "The flox installer needs ${MISSING[*]} to run."
+  echo "Install them or use a pre-baked agent image with flox pre-installed (install: false)."
+  echo "See https://github.com/imkarrer/flox-buildkite-plugin#docker"
+  exit 1
+fi
+
 CHANNEL="${BUILDKITE_PLUGIN_FLOX_CHANNEL:-stable}"
 VERSION="${BUILDKITE_PLUGIN_FLOX_VERSION:-}"
 
+INSTALL_ARGS=("--channel" "$CHANNEL")
 if [[ -n "$VERSION" ]]; then
-  INSTALL_ARGS=("--channel" "$CHANNEL" "--version" "$VERSION")
-else
-  INSTALL_ARGS=("--channel" "$CHANNEL")
+  INSTALL_ARGS+=("--version" "$VERSION")
 fi
 
 bash <(curl -fsSL https://flox.dev/install) "${INSTALL_ARGS[@]}" --yes
@@ -36,4 +44,4 @@ if ! command -v flox &>/dev/null; then
   exit 1
 fi
 
-echo "flox version: $(flox --version)"
+echo "flox $(flox --version) installed"

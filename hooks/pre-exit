@@ -1,4 +1,3 @@
 #!/bin/bash
 set -euo pipefail
-
-echo "--- :flox: Cleaning up"
+# no-op cleanup hook

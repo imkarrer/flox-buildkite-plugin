@@ -1,97 +1,147 @@
 # Flox Buildkite Plugin
 
-Run commands inside reproducible Flox environments in your Buildkite pipelines.
+Run commands inside reproducible [Flox](https://flox.dev) environments in your Buildkite pipelines.
 
-## Example
+## Requirements
 
-```yml
-steps:
-  - command: npm run build
-    plugins:
-      - flox/flox#v1.0.0:
-          command: npm run build
-```
+### Auto-install path (`install: true`, default)
 
-## Configuration
+The plugin installs flox on first use via `https://flox.dev/install`. The runner needs:
 
-### `command` (Required, string)
+- `curl` — downloads the installer
+- `sudo` — the installer writes to `/nix` and `/usr/bin`
+- `xz-utils` — used by the installer for decompression
 
-The command to run inside the Flox environment.
+The install step runs once; subsequent pipeline steps reuse the installed binary.
 
-### `install` (Optional, boolean)
+### Pre-installed path (`install: false`)
 
-Install flox if not already present on the agent. Default: `true`.
+Use a pre-baked agent image with flox already installed. Only `bash` is required.
 
-### `channel` (Optional, string)
-
-Flox release channel. One of: `stable`, `qa`, `nightly`, or a commit hash. Default: `stable`.
-
-### `version` (Optional, string)
-
-Pin a specific flox version. Default: latest from channel.
-
-### `environment` (Optional, string)
-
-Remote FloxHub environment to activate, in `owner/name` format.
-
-### `dir` (Optional, string)
-
-Path to a directory containing a `.flox/` environment.
-
-### `disable-metrics` (Optional, boolean)
-
-Disable anonymous usage telemetry. Default: `true`.
-
-## Advanced examples
-
-### Use a remote environment from FloxHub
+## Usage
 
 ```yml
 steps:
   - command: npm run build
     plugins:
-      - flox/flox#v1.0.0:
+      - imkarrer/flox-buildkite-plugin#v1.0.0:
           command: npm run build
-          environment: my-org/my-node-env
 ```
 
-### Pin a specific flox version
+### Minimal pipeline
 
 ```yml
 steps:
-  - command: make test
+  - label: ":flox: Build"
+    command: npm run build
     plugins:
-      - flox/flox#v1.0.0:
-          command: make test
-          version: "1.3.2"
-          channel: stable
+      - imkarrer/flox-buildkite-plugin#v1.0.0:
+          command: npm run build
 ```
 
-### Use an environment from a subdirectory
+### Multi-step
 
 ```yml
 steps:
-  - command: cargo build
+  - label: ":flox: Lint"
+    command: eslint .
     plugins:
-      - flox/flox#v1.0.0:
-          command: cargo build
+      - imkarrer/flox-buildkite-plugin#v1.0.0:
+          command: eslint .
+  - label: ":flox: Test"
+    command: vitest run
+    plugins:
+      - imkarrer/flox-buildkite-plugin#v1.0.0:
+          command: vitest run
+```
+
+### Remote environment from FloxHub
+
+```yml
+steps:
+  - label: ":netlify: Deploy"
+    plugins:
+      - imkarrer/flox-buildkite-plugin#v1.0.0:
+          environment: my-org/netlify-deploy
+          command: netlify deploy --prod
+```
+
+### Environment from a subdirectory
+
+```yml
+steps:
+  - label: ":rust: Build backend"
+    plugins:
+      - imkarrer/flox-buildkite-plugin#v1.0.0:
           dir: backend
+          command: cargo build --release
 ```
 
-### Skip installation on a pre-configured runner
+### Pre-baked agent (no install step)
 
 ```yml
 steps:
-  - command: flox activate -c "pytest"
+  - label: ":flox: Fast path"
     plugins:
-      - flox/flox#v1.0.0:
+      - imkarrer/flox-buildkite-plugin#v1.0.0:
           command: pytest
           install: false
 ```
 
-## Developing
+## Configuration
 
-Run tests with BATS:
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `command` | string | — | Command to run inside the Flox environment |
+| `install` | boolean | `true` | Install flox if not present on the agent |
+| `channel` | string | `stable` | Flox release channel (`stable`, `qa`, `nightly`, or commit hash) |
+| `version` | string | latest | Pin a specific flox version |
+| `environment` | string | — | Remote FloxHub environment in `owner/name` format |
+| `dir` | string | — | Path to directory containing a `.flox/` environment |
+| `disable-metrics` | boolean | `true` | Disable anonymous usage telemetry |
+
+## Docker
+
+Use a pre-baked agent image to skip the install step entirely. This is recommended for production — no download, no network dependency at job time, pinned flox version.
+
+```dockerfile
+FROM buildkite/agent:3
+
+USER root
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    sudo \
+    xz-utils \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN bash <(curl -fsSL https://flox.dev/install) --channel stable --yes \
+    && chmod a+rx /usr/local/bin/flox
+
+USER buildkite
+```
+
+Build and push:
+
+```bash
+docker build -t your-registry/buildkite-agent-flox:latest .
+docker push your-registry/buildkite-agent-flox:latest
+```
+
+Then configure your Buildkite agents to use this image and set `install: false`:
+
+```yml
+steps:
+  - label: ":flox: Deploy"
+    plugins:
+      - imkarrer/flox-buildkite-plugin#v1.0.0:
+          command: deploy.sh
+          install: false
+```
+
+You can also extend the image further by adding your team's CA certs, SSH keys, or other tooling.
+
+## Developing
 
 ```shell
 docker-compose run --rm tests
