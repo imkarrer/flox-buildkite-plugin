@@ -1,0 +1,33 @@
+#!/bin/bash
+set -euo pipefail
+
+COMMAND="${BUILDKITE_PLUGIN_FLOX_COMMAND}"
+ENVIRONMENT="${BUILDKITE_PLUGIN_FLOX_ENVIRONMENT:-}"
+DIR="${BUILDKITE_PLUGIN_FLOX_DIR:-}"
+DISABLE_METRICS="${BUILDKITE_PLUGIN_FLOX_DISABLE_METRICS:-true}"
+ENV_VARS="${BUILDKITE_PLUGIN_FLOX_ENVIRONMENT_VARS:-}"
+
+FLOX_ARGS=()
+
+if [[ -n "$DISABLE_METRICS" ]]; then
+  export FLOX_DISABLE_METRICS=true
+fi
+
+if [[ -n "$ENVIRONMENT" ]]; then
+  FLOX_ARGS+=("--remote" "$ENVIRONMENT")
+fi
+
+if [[ -n "$DIR" ]]; then
+  FLOX_ARGS+=("--dir" "$DIR")
+fi
+
+echo "--- :flox: Activating flox environment"
+
+if [[ -n "$ENV_VARS" ]]; then
+  for var in "${ENV_VARS[@]}"; do
+    export "$var"
+  done
+fi
+
+echo "Running: flox activate ${FLOX_ARGS[*]} -c ${COMMAND}"
+flox activate "${FLOX_ARGS[@]}" -c "${COMMAND}"

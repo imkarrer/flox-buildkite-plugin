@@ -1,0 +1,43 @@
+name: Flox
+description: Reproducible dev environments using Flox — install flox, activate environments, and run commands
+author: https://github.com/flox
+requirements:
+  - curl
+  - sudo
+configuration:
+  properties:
+    command:
+      type: string
+      description: Command to run inside the Flox environment
+    install:
+      type: boolean
+      default: true
+      description: Install flox if not already present on the agent
+    channel:
+      type: string
+      default: stable
+      description: Flox release channel (stable, qa, nightly, or commit hash)
+    version:
+      type: string
+      default: ""
+      description: Pin a specific flox version
+    environment:
+      type: string
+      default: ""
+      description: Remote FloxHub environment (owner/name) to activate
+    dir:
+      type: string
+      default: ""
+      description: Path to directory containing a .flox/ environment
+    environment-vars:
+      type: array
+      items:
+        type: string
+      description: Additional environment variables for the activation
+    disable-metrics:
+      type: boolean
+      default: true
+      description: Disable anonymous usage telemetry
+  required:
+    - command
+  additionalProperties: false

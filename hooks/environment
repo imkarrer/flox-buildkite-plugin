@@ -1,0 +1,39 @@
+#!/bin/bash
+set -euo pipefail
+
+INSTALL="${BUILDKITE_PLUGIN_FLOX_INSTALL:-true}"
+
+if [[ "$INSTALL" == "false" ]]; then
+  if ! command -v flox &>/dev/null; then
+    echo "+++ :flox: flox not found and install is disabled"
+    exit 1
+  fi
+  echo "--- :flox: Using pre-installed flox"
+  exit 0
+fi
+
+if command -v flox &>/dev/null; then
+  echo "--- :flox: flox already installed, skipping installation"
+  export FLOX_ALREADY_INSTALLED=true
+  exit 0
+fi
+
+echo "--- :flox: Installing flox"
+
+CHANNEL="${BUILDKITE_PLUGIN_FLOX_CHANNEL:-stable}"
+VERSION="${BUILDKITE_PLUGIN_FLOX_VERSION:-}"
+
+if [[ -n "$VERSION" ]]; then
+  INSTALL_ARGS=("--channel" "$CHANNEL" "--version" "$VERSION")
+else
+  INSTALL_ARGS=("--channel" "$CHANNEL")
+fi
+
+bash <(curl -fsSL https://flox.dev/install) "${INSTALL_ARGS[@]}" --yes
+
+if ! command -v flox &>/dev/null; then
+  echo "+++ :flox: flox installation failed"
+  exit 1
+fi
+
+echo "flox version: $(flox --version)"
