@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: Unit tests & lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Unit tests (bats)
+        run: docker compose run --rm tests
+      - name: Lint plugin
+        run: docker compose run --rm lint
+
+  activate:
+    name: Real flox activation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install flox
+        uses: flox/install-flox-action@v2
+      - name: Run the plugin hooks against a real local environment
+        run: |
+          flox init -d /tmp/smoke
+          flox install -d /tmp/smoke hello
+          export BUILDKITE_PLUGIN_FLOX_COMMAND="hello"
+          export BUILDKITE_PLUGIN_FLOX_DIR="/tmp/smoke"
+          ./hooks/environment
+          ./hooks/command
+
+  # Remote FloxHub environment. Enable by adding a FLOX_TOKEN repository secret
+  # and pushing an env to your account: flox push -d examples/hello
+  #
+  # activate-remote:
+  #   name: Real flox activation (remote FloxHub env)
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: flox/install-flox-action@v2
+  #     - name: Run the plugin hooks against a remote environment
+  #       env:
+  #         FLOX_TOKEN: ${{ secrets.FLOX_TOKEN }}
+  #         BUILDKITE_PLUGIN_FLOX_COMMAND: hello
+  #         BUILDKITE_PLUGIN_FLOX_ENVIRONMENT: imkarrer/hello
+  #       run: |
+  #         ./hooks/environment
+  #         ./hooks/command

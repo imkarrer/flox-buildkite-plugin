@@ -1,5 +1,7 @@
 # Flox Buildkite Plugin
 
+[![CI](https://github.com/imkarrer/flox-buildkite-plugin/actions/workflows/ci.yml/badge.svg)](https://github.com/imkarrer/flox-buildkite-plugin/actions/workflows/ci.yml)
+
 Run your Buildkite steps inside a reproducible [Flox](https://flox.dev) environment that lives in your repo. No Dockerfile, no container registry, no image tags to keep in sync — the environment travels with your code, so a dependency change and the code that needs it land in a single commit.
 
 The plugin wraps each step in `flox activate`, materializing the environment on any Linux/macOS runner: if `flox` is on `PATH` it uses it, otherwise it auto-installs. The lockfile pins every dependency to a content hash, so builds are reproducible without pre-baked runner images or a Docker supply chain to maintain.
@@ -254,6 +256,8 @@ Lint the plugin definition:
 ```shell
 docker-compose run --rm lint
 ```
+
+These same checks run on every push and pull request via [GitHub Actions](.github/workflows/ci.yml), which also smoke-tests a real `flox activate` using [`flox/install-flox-action`](https://github.com/flox/install-flox-action).
 
 ### End-to-end
 
