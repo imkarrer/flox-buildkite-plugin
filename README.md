@@ -1,18 +1,14 @@
 # Flox Buildkite Plugin
 
-Your build environment lives in `.flox/`, committed with your code. No Dockerfile, no container registry, no image tag versioning — change deps and code in a single commit.
+Run your Buildkite steps inside a reproducible [Flox](https://flox.dev) environment that lives in your repo. No Dockerfile, no container registry, no image tags to keep in sync — the environment travels with your code, so a dependency change and the code that needs it land in a single commit.
 
-The plugin materializes the environment on any Linux/macOS runner: if `flox` is on `PATH` it uses it, otherwise it auto-installs. The lockfile pins every dependency, so builds are reproducible without pre-baked runner images or Docker supply chain.
-
-Best fit if you already use Flox locally, work in a monorepo with many environments, or want to skip maintaining a separate CI image pipeline. Overkill if you're happy with `docker build` for your CI image — this plugin trades Dockerfile/Docker registry overhead for Flox/FloxHub overhead; the win is atomic code+env commits and no out-of-band artifact to manage.
-
-The plugin auto-detects `flox` on `PATH`. If missing, it downloads and installs flox from `https://flox.dev/install`. For remote environments on FloxHub, pass a `floxhub-token` (or set `FLOX_TOKEN` on the agent). Local `.flox/` environments in your repo need no auth.
+The plugin wraps each step in `flox activate`, materializing the environment on any Linux/macOS runner: if `flox` is on `PATH` it uses it, otherwise it auto-installs. The lockfile pins every dependency to a content hash, so builds are reproducible without pre-baked runner images or a Docker supply chain to maintain.
 
 ## Why not just bake a Docker image?
 
-You can, and plenty of teams do. The usual path to a reproducible CI environment is a Dockerfile: install your toolchain, build the image, push it to a registry, and point your agents at the tag. It works. But it leaves you owning a second artifact — one that lives outside your repo, versions on its own schedule, and has to be rebuilt and re-pushed every time a dependency moves.
+You can, and plenty of teams do. The usual path to a reproducible CI environment is a Dockerfile: install your toolchain, build the image, push it to a registry, and point your agents at the tag. It works — but it leaves you owning a second artifact that lives outside your repo, versions on its own schedule, and has to be rebuilt and re-pushed every time a dependency moves.
 
-Flox collapses that. The environment is a file in your repo (`.flox/manifest.toml`) with a lockfile that pins every package to a content hash. Nothing to build, nothing to publish — the plugin materializes the environment on the runner at job time. Changing a dependency and changing the code that needs it land in the same commit.
+Flox collapses that. The environment is a single file in your repo (`.flox/manifest.toml`) with a lockfile pinning every package to a content hash. Nothing to build, nothing to publish — the plugin realizes the environment on the runner at job time, and changing a dependency lands in the same commit as the code that needs it.
 
 Here's the same Node build environment defined both ways.
 
@@ -77,7 +73,7 @@ steps:
 
 The gap shows up on day two. Bumping Node from 22 to 24 with Docker means editing the Dockerfile, rebuilding, pushing, and usually bumping a tag in a separate PR before CI ever sees the change. With Flox it's `flox install nodejs_24` on the same branch as the code that needs it — one commit, and the identical environment activates on your laptop with `flox activate`. No more "green in CI, broken locally."
 
-Docker still earns its keep when you need kernel-level isolation for untrusted build steps, or when the image *is* the thing you ship. The two aren't even mutually exclusive: bake `flox` into a slim agent image to skip cold-start install time and let the plugin realize each repo's `.flox/` on top (see [Docker](#docker) below). But for the everyday case — "make CI use the same tools as my project" — a committed Flox environment is a file and a commit, not a pipeline you have to babysit.
+Reach for Flox when you already use it locally, run a monorepo with many environments, or just want to stop maintaining a separate CI image pipeline. Docker still earns its keep when you need kernel-level isolation for untrusted build steps, or when the image *is* the thing you ship — and the two aren't mutually exclusive: bake `flox` into a slim agent image to skip cold-start install time and let the plugin realize each repo's `.flox/` on top (see [Docker](#docker) below). But for the everyday case — "make CI use the same tools as my project" — a committed Flox environment is a file and a commit, not a pipeline you have to babysit.
 
 ## Usage
 
