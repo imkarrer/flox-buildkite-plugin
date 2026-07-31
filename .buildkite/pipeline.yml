@@ -16,11 +16,13 @@ steps:
           command: hello
 
   # Uncomment once you've pushed a remote env to FloxHub and set FLOX_TOKEN
-  # on the agent (or pass floxhub-token here):
+  # on the agent (or pass floxhub-token here). soft_fail keeps an expired
+  # token from failing the build:
   #
   #   flox push -d examples/hello   # publishes to imkarrer/hello
   #
   # - label: ":flox: remote env"
+  #   soft_fail: true
   #   plugins:
   #     - imkarrer/flox-buildkite-plugin#main:
   #         environment: imkarrer/hello

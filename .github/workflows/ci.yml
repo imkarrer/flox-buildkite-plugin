@@ -6,6 +6,7 @@ on:
   pull_request:
 
 jobs:
+  # --- Blocking: no account or token required ---
   test:
     name: Unit tests & lint
     runs-on: ubuntu-latest
@@ -17,7 +18,7 @@ jobs:
         run: docker compose run --rm lint
 
   activate:
-    name: Real flox activation
+    name: Real flox activation (local env)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -32,20 +33,30 @@ jobs:
           ./hooks/environment
           ./hooks/command
 
-  # Remote FloxHub environment. Enable by adding a FLOX_TOKEN repository secret
-  # and pushing an env to your account: flox push -d examples/hello
-  #
-  # activate-remote:
-  #   name: Real flox activation (remote FloxHub env)
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - uses: flox/install-flox-action@v2
-  #     - name: Run the plugin hooks against a remote environment
-  #       env:
-  #         FLOX_TOKEN: ${{ secrets.FLOX_TOKEN }}
-  #         BUILDKITE_PLUGIN_FLOX_COMMAND: hello
-  #         BUILDKITE_PLUGIN_FLOX_ENVIRONMENT: imkarrer/hello
-  #       run: |
-  #         ./hooks/environment
-  #         ./hooks/command
+  # --- Non-blocking: exercises the FloxHub/remote path. An expired or missing
+  # --- token produces a warning, never a merge-blocking failure.
+  activate-remote:
+    name: Real flox activation (remote env, non-blocking)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install flox
+        uses: flox/install-flox-action@v2
+      - name: Run the plugin hooks against a remote FloxHub environment
+        id: remote
+        continue-on-error: true
+        env:
+          FLOX_TOKEN: ${{ secrets.FLOX_TOKEN }}
+          BUILDKITE_PLUGIN_FLOX_COMMAND: hello
+          BUILDKITE_PLUGIN_FLOX_ENVIRONMENT: imkarrer/hello
+        run: |
+          if [ -z "$FLOX_TOKEN" ]; then
+            echo "::warning::FLOX_TOKEN secret not set — skipping remote env test."
+            exit 0
+          fi
+          ./hooks/environment
+          ./hooks/command
+      - name: Report remote outcome
+        if: steps.remote.outcome == 'failure'
+        run: |
+          echo "::warning::Remote FloxHub env test failed (likely an expired or invalid token). This does not block merges — refresh the FLOX_TOKEN secret to restore it."

@@ -257,7 +257,10 @@ Lint the plugin definition:
 docker-compose run --rm lint
 ```
 
-These same checks run on every push and pull request via [GitHub Actions](.github/workflows/ci.yml), which also smoke-tests a real `flox activate` using [`flox/install-flox-action`](https://github.com/flox/install-flox-action).
+These run on every push and pull request via [GitHub Actions](.github/workflows/ci.yml), alongside a real `flox activate` smoke test using [`flox/install-flox-action`](https://github.com/flox/install-flox-action):
+
+- **Blocking** — `Unit tests & lint` and `Real flox activation (local env)`. No account or token needed. Mark these as required status checks in branch protection.
+- **Non-blocking** — `Real flox activation (remote env)` exercises the FloxHub path. A missing or expired `FLOX_TOKEN` produces a warning, never a merge-blocking failure, so token expiry never gates a merge. Add a `FLOX_TOKEN` repository secret to enable it; leave it as an *optional* check (not required) in branch protection.
 
 ### End-to-end
 
