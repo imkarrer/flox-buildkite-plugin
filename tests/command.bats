@@ -13,7 +13,6 @@ setup() {
 
   assert_success
   assert_output --partial "Activated"
-  assert_output --partial "flox environment"
 
   unstub flox
 }

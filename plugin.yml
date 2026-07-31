@@ -8,10 +8,6 @@ configuration:
     command:
       type: string
       description: Command to run inside the Flox environment
-    install:
-      type: boolean
-      default: true
-      description: Install flox if not already present on the agent
     channel:
       type: string
       default: stable
