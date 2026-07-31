@@ -1,0 +1,11 @@
+services:
+  tests:
+    image: buildkite/plugin-tester:v4.1.1
+    volumes:
+      - ".:/plugin"
+
+  lint:
+    image: buildkite/plugin-linter:latest
+    command: ["--id", "imkarrer/flox"]
+    volumes:
+      - ".:/plugin"

@@ -1,0 +1,27 @@
+# Self-test pipeline: this plugin dogfoods itself against the example
+# environment in examples/hello. Point a Buildkite pipeline at this repo.
+steps:
+  - label: ":bash: unit tests"
+    command: docker-compose run --rm tests
+
+  - label: ":bash: lint"
+    command: docker-compose run --rm lint
+
+  - wait
+
+  - label: ":flox: local env"
+    plugins:
+      - imkarrer/flox-buildkite-plugin#main:
+          dir: examples/hello
+          command: hello
+
+  # Uncomment once you've pushed a remote env to FloxHub and set FLOX_TOKEN
+  # on the agent (or pass floxhub-token here):
+  #
+  #   flox push -d examples/hello   # publishes to imkarrer/hello
+  #
+  # - label: ":flox: remote env"
+  #   plugins:
+  #     - imkarrer/flox-buildkite-plugin#main:
+  #         environment: imkarrer/hello
+  #         command: hello

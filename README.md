@@ -243,9 +243,28 @@ docker push your-registry/buildkite-agent-flox:latest
 
 ## Developing
 
+Run the bats unit tests (they stub `flox`, so no account or network needed):
+
 ```shell
 docker-compose run --rm tests
 ```
+
+Lint the plugin definition:
+
+```shell
+docker-compose run --rm lint
+```
+
+### End-to-end
+
+The plugin dogfoods itself via [`.buildkite/pipeline.yml`](.buildkite/pipeline.yml) against the environment in `examples/hello` — no separate consumer repo required. Point a Buildkite pipeline at this repo to run it. Generate the example environment once with:
+
+```shell
+flox init -d examples/hello
+flox install -d examples/hello hello
+```
+
+Commit the resulting `examples/hello/.flox/` so the lockfile is pinned. For the remote-environment step, `flox push -d examples/hello` and set `FLOX_TOKEN` on the agent.
 
 ## License
 
