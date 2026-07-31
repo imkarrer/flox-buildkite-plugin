@@ -71,7 +71,7 @@ Commit `.flox/`, then run against it — no registry, no image tag to track:
 steps:
   - command: pnpm install && pnpm build
     plugins:
-      - imkarrer/flox-buildkite-plugin#v1.0.0:
+      - imkarrer/flox#v1.0.0:
           command: pnpm install && pnpm build
 ```
 
@@ -87,7 +87,7 @@ Reach for Flox when you already use it locally, run a monorepo with many environ
 steps:
   - command: npm run build
     plugins:
-      - imkarrer/flox-buildkite-plugin#v1.0.0:
+      - imkarrer/flox#v1.0.0:
           command: npm run build
 ```
 
@@ -99,7 +99,7 @@ The `.flox/` directory lives in your repo — no auth needed.
 steps:
   - command: netlify deploy
     plugins:
-      - imkarrer/flox-buildkite-plugin#v1.0.0:
+      - imkarrer/flox#v1.0.0:
           command: netlify deploy
           environment: my-org/netlify-deploy
           floxhub-token: BKvR...
@@ -111,7 +111,7 @@ Better: set the token once on the agent as an environment variable.
 steps:
   - command: netlify deploy
     plugins:
-      - imkarrer/flox-buildkite-plugin#v1.0.0:
+      - imkarrer/flox#v1.0.0:
           command: netlify deploy
           environment: my-org/netlify-deploy
 ```
@@ -127,7 +127,7 @@ FLOX_TOKEN=BKvR...
 steps:
   - command: deploy
     plugins:
-      - imkarrer/flox-buildkite-plugin#v1.0.0:
+      - imkarrer/flox#v1.0.0:
           command: deploy
           environment: another-org/tools
           floxhub-token: BKvR...
@@ -141,12 +141,12 @@ steps:
   - label: ":flox: Lint"
     command: eslint .
     plugins:
-      - imkarrer/flox-buildkite-plugin#v1.0.0:
+      - imkarrer/flox#v1.0.0:
           command: eslint .
   - label: ":flox: Test"
     command: vitest run
     plugins:
-      - imkarrer/flox-buildkite-plugin#v1.0.0:
+      - imkarrer/flox#v1.0.0:
           command: vitest run
 ```
 
@@ -156,12 +156,12 @@ steps:
 steps:
   - label: ":rust: Build backend"
     plugins:
-      - imkarrer/flox-buildkite-plugin#v1.0.0:
+      - imkarrer/flox#v1.0.0:
           dir: backend
           command: cargo build --release
   - label: ":react: Build frontend"
     plugins:
-      - imkarrer/flox-buildkite-plugin#v1.0.0:
+      - imkarrer/flox#v1.0.0:
           dir: frontend
           command: vite build
 ```
@@ -172,7 +172,7 @@ steps:
 steps:
   - label: ":flox: Test python {{ matrix.env }}"
     plugins:
-      - imkarrer/flox-buildkite-plugin#v1.0.0:
+      - imkarrer/flox#v1.0.0:
           environment: my-org/python-{{ matrix.env }}
           command: pytest
     matrix:
@@ -187,7 +187,7 @@ steps:
 steps:
   - label: ":docker: Build image"
     plugins:
-      - imkarrer/flox-buildkite-plugin#v1.0.0:
+      - imkarrer/flox#v1.0.0:
           command: flox containerize --runtime docker
   - label: ":docker: Push"
     commands:

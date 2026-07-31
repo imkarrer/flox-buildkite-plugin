@@ -6,6 +6,6 @@ services:
 
   lint:
     image: buildkite/plugin-linter:latest
-    command: ["--id", "imkarrer/flox-buildkite-plugin"]
+    command: ["--id", "imkarrer/flox"]
     volumes:
       - ".:/plugin"

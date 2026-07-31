@@ -11,7 +11,7 @@ steps:
 
   - label: ":flox: local env"
     plugins:
-      - imkarrer/flox-buildkite-plugin#main:
+      - imkarrer/flox#main:
           dir: examples/hello
           command: hello
 
@@ -24,6 +24,6 @@ steps:
   # - label: ":flox: remote env"
   #   soft_fail: true
   #   plugins:
-  #     - imkarrer/flox-buildkite-plugin#main:
+  #     - imkarrer/flox#main:
   #         environment: imkarrer/hello
   #         command: hello
