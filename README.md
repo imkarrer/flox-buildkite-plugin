@@ -8,6 +8,77 @@ Best fit if you already use Flox locally, work in a monorepo with many environme
 
 The plugin auto-detects `flox` on `PATH`. If missing, it downloads and installs flox from `https://flox.dev/install`. For remote environments on FloxHub, pass a `floxhub-token` (or set `FLOX_TOKEN` on the agent). Local `.flox/` environments in your repo need no auth.
 
+## Why not just bake a Docker image?
+
+You can, and plenty of teams do. The usual path to a reproducible CI environment is a Dockerfile: install your toolchain, build the image, push it to a registry, and point your agents at the tag. It works. But it leaves you owning a second artifact — one that lives outside your repo, versions on its own schedule, and has to be rebuilt and re-pushed every time a dependency moves.
+
+Flox collapses that. The environment is a file in your repo (`.flox/manifest.toml`) with a lockfile that pins every package to a content hash. Nothing to build, nothing to publish — the plugin materializes the environment on the runner at job time. Changing a dependency and changing the code that needs it land in the same commit.
+
+Here's the same Node build environment defined both ways.
+
+**Docker** — write a Dockerfile:
+
+```dockerfile
+FROM buildkite/agent:3
+
+USER root
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      curl ca-certificates git \
+    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+    && apt-get install -y nodejs \
+    && npm install -g pnpm@9 \
+    && rm -rf /var/lib/apt/lists/*
+USER buildkite
+```
+
+Build it, push it, then reference the tag in your pipeline:
+
+```bash
+docker build -t your-registry/ci-node:22 .
+docker push your-registry/ci-node:22
+```
+
+```yml
+steps:
+  - command: pnpm install && pnpm build
+    agents:
+      queue: docker
+    plugins:
+      - docker#v5.11.0:
+          image: your-registry/ci-node:22
+```
+
+**Flox** — declare the same tools and commit the result:
+
+```bash
+flox init
+flox install nodejs_22 pnpm
+```
+
+That writes `.flox/manifest.toml`:
+
+```toml
+version = 1
+
+[install]
+nodejs_22.pkg-path = "nodejs_22"
+pnpm.pkg-path = "pnpm"
+```
+
+Commit `.flox/`, then run against it — no registry, no image tag to track:
+
+```yml
+steps:
+  - command: pnpm install && pnpm build
+    plugins:
+      - imkarrer/flox-buildkite-plugin#v1.0.0:
+          command: pnpm install && pnpm build
+```
+
+The gap shows up on day two. Bumping Node from 22 to 24 with Docker means editing the Dockerfile, rebuilding, pushing, and usually bumping a tag in a separate PR before CI ever sees the change. With Flox it's `flox install nodejs_24` on the same branch as the code that needs it — one commit, and the identical environment activates on your laptop with `flox activate`. No more "green in CI, broken locally."
+
+Docker still earns its keep when you need kernel-level isolation for untrusted build steps, or when the image *is* the thing you ship. The two aren't even mutually exclusive: bake `flox` into a slim agent image to skip cold-start install time and let the plugin realize each repo's `.flox/` on top (see [Docker](#docker) below). But for the everyday case — "make CI use the same tools as my project" — a committed Flox environment is a file and a commit, not a pipeline you have to babysit.
+
 ## Usage
 
 ### Local environment
