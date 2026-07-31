@@ -4,6 +4,8 @@ Run your Buildkite steps inside a reproducible [Flox](https://flox.dev) environm
 
 The plugin wraps each step in `flox activate`, materializing the environment on any Linux/macOS runner: if `flox` is on `PATH` it uses it, otherwise it auto-installs. The lockfile pins every dependency to a content hash, so builds are reproducible without pre-baked runner images or a Docker supply chain to maintain.
 
+Flox ships first-class CI integrations for GitHub Actions, CircleCI, and GitLab — Buildkite is the gap this plugin fills. You *floxify* a repo once (`flox init` writes `.flox/manifest.toml`, committed alongside your code); this plugin is the Buildkite-native way to run against that environment — the counterpart to [`install-flox-action`](https://github.com/flox/install-flox-action) for GitHub Actions and the [Flox orb](https://github.com/flox/flox-orb) for CircleCI. It turns the bare `flox activate -c` you'd otherwise hand-roll in every command step into declarative plugin config: flox auto-install on ephemeral agents, FloxHub token and `trust` handling, per-directory environments for monorepos, and matrix builds.
+
 ## Why not just bake a Docker image?
 
 You can, and plenty of teams do. The usual path to a reproducible CI environment is a Dockerfile: install your toolchain, build the image, push it to a registry, and point your agents at the tag. It works — but it leaves you owning a second artifact that lives outside your repo, versions on its own schedule, and has to be rebuilt and re-pushed every time a dependency moves.
