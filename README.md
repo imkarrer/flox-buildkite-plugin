@@ -218,23 +218,11 @@ Local environments (`.flox/` in the repo via `dir`) need no auth.
 
 ## Docker
 
-Use a pre-baked agent image to skip the install step. No downloads at job time, pinned flox version.
+Use a pre-baked agent image to skip the install step — no downloads at job time, pinned flox version. See the [`Dockerfile`](Dockerfile) in this repo, which:
 
-```dockerfile
-FROM buildkite/agent:3
-
-USER root
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    sudo \
-    xz-utils \
-    && rm -rf /var/lib/apt/lists/*
-
-RUN bash <(curl -fsSL https://flox.dev/install) --channel stable --yes
-
-USER buildkite
-```
+- bases on `buildkite/agent:3-ubuntu` (flox ships glibc packages and does not run on the default Alpine `buildkite/agent:3` image),
+- installs flox from its `.deb` package (arch-aware, pinned via the `FLOX_VERSION` build arg), and
+- starts the Nix daemon on boot via a `/docker-entrypoint.d` hook, which flox requires.
 
 Build, push, and configure your agents:
 
