@@ -1,12 +1,12 @@
 # Flox Buildkite Plugin
 
-Run commands inside reproducible [Flox](https://flox.dev) environments in your Buildkite pipelines.
+Your build environment lives in `.flox/`, committed with your code. No Dockerfile, no container registry, no image tag versioning — change deps and code in a single commit.
 
-## How it works
+The plugin materializes the environment on any Linux/macOS runner: if `flox` is on `PATH` it uses it, otherwise it auto-installs. The lockfile pins every dependency, so builds are reproducible without pre-baked runner images or Docker supply chain.
 
-The plugin auto-detects `flox` on `PATH`. If missing, it downloads and installs flox from `https://flox.dev/install`.
+Best fit if you already use Flox locally, work in a monorepo with many environments, or want to skip maintaining a separate CI image pipeline. Overkill if you're happy with `docker build` for your CI image — this plugin trades Dockerfile/Docker registry overhead for Flox/FloxHub overhead; the win is atomic code+env commits and no out-of-band artifact to manage.
 
-For remote environments on FloxHub, pass a `floxhub-token` (or set `FLOX_TOKEN` on the agent). Local `.flox/` environments in your repo need no auth.
+The plugin auto-detects `flox` on `PATH`. If missing, it downloads and installs flox from `https://flox.dev/install`. For remote environments on FloxHub, pass a `floxhub-token` (or set `FLOX_TOKEN` on the agent). Local `.flox/` environments in your repo need no auth.
 
 ## Usage
 
