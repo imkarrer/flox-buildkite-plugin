@@ -1,38 +1,43 @@
 #!/bin/bash
 set -euo pipefail
 
-if command -v flox &>/dev/null; then
-  echo "--- :flox: Using pre-installed flox ($(flox --version 2>/dev/null || echo 'version unknown'))"
-  exit 0
-fi
-
-echo "--- :flox: Installing flox"
-
-MISSING=()
-command -v curl &>/dev/null || MISSING+=("curl")
-command -v sudo &>/dev/null || MISSING+=("sudo")
-
-if [[ ${#MISSING[@]} -gt 0 ]]; then
-  echo "+++ :flox: Missing prerequisites: ${MISSING[*]}"
-  echo "The flox installer needs ${MISSING[*]} to run."
-  echo "Use a pre-baked agent image with flox pre-installed to avoid this."
-  echo "See https://github.com/imkarrer/flox-buildkite-plugin#docker"
-  exit 1
-fi
-
-CHANNEL="${BUILDKITE_PLUGIN_FLOX_CHANNEL:-stable}"
-VERSION="${BUILDKITE_PLUGIN_FLOX_VERSION:-}"
-
-INSTALL_ARGS=("--channel" "$CHANNEL")
-if [[ -n "$VERSION" ]]; then
-  INSTALL_ARGS+=("--version" "$VERSION")
-fi
-
-bash <(curl -fsSL https://flox.dev/install) "${INSTALL_ARGS[@]}" --yes
-
+# --- Install flox if missing ---
 if ! command -v flox &>/dev/null; then
-  echo "+++ :flox: flox installation failed"
-  exit 1
+  echo "--- :flox: Installing flox"
+
+  MISSING=()
+  command -v curl &>/dev/null || MISSING+=("curl")
+  command -v sudo &>/dev/null || MISSING+=("sudo")
+
+  if [[ ${#MISSING[@]} -gt 0 ]]; then
+    echo "+++ :flox: Missing prerequisites: ${MISSING[*]}"
+    echo "Use a pre-baked agent image with flox pre-installed to avoid this."
+    echo "See https://github.com/imkarrer/flox-buildkite-plugin#docker"
+    exit 1
+  fi
+
+  CHANNEL="${BUILDKITE_PLUGIN_FLOX_CHANNEL:-stable}"
+  VERSION="${BUILDKITE_PLUGIN_FLOX_VERSION:-}"
+
+  INSTALL_ARGS=("--channel" "$CHANNEL")
+  [[ -n "$VERSION" ]] && INSTALL_ARGS+=("--version" "$VERSION")
+
+  bash <(curl -fsSL https://flox.dev/install) "${INSTALL_ARGS[@]}" --yes
+
+  command -v flox &>/dev/null || { echo "+++ :flox: flox installation failed"; exit 1; }
+  echo "flox $(flox --version) installed"
+else
+  echo "--- :flox: Using pre-installed flox ($(flox --version 2>/dev/null || echo '?'))"
 fi
 
-echo "flox $(flox --version) installed"
+# --- Authenticate if remote environment is requested ---
+ENVIRONMENT="${BUILDKITE_PLUGIN_FLOX_ENVIRONMENT:-}"
+FLOXHUB_TOKEN="${BUILDKITE_PLUGIN_FLOXHUB_TOKEN:-${FLOX_TOKEN:-}}"
+
+if [[ -n "$ENVIRONMENT" && -n "$FLOXHUB_TOKEN" ]]; then
+  if ! flox auth status &>/dev/null; then
+    echo "--- :flox: Authenticating with FloxHub"
+    echo "$FLOXHUB_TOKEN" | flox auth login --token-file -
+    flox auth status || { echo "+++ :flox: FloxHub authentication failed"; exit 1; }
+  fi
+fi

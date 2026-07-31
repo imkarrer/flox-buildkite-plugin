@@ -4,11 +4,13 @@ Run commands inside reproducible [Flox](https://flox.dev) environments in your B
 
 ## How it works
 
-If `flox` is already on the agent's `PATH`, the plugin uses it directly. If not, it downloads and installs flox from `https://flox.dev/install` — zero agent setup required.
+The plugin auto-detects `flox` on `PATH`. If missing, it downloads and installs flox from `https://flox.dev/install`.
 
-The auto-install path needs `curl` and `sudo` on the runner. Use the [pre-baked Docker image](#docker) to skip install entirely.
+For remote environments on FloxHub, pass a `floxhub-token` (or set `FLOX_TOKEN` on the agent). Local `.flox/` environments in your repo need no auth.
 
 ## Usage
+
+### Local environment
 
 ```yml
 steps:
@@ -16,6 +18,49 @@ steps:
     plugins:
       - imkarrer/flox-buildkite-plugin#v1.0.0:
           command: npm run build
+```
+
+The `.flox/` directory lives in your repo — no auth needed.
+
+### Remote environment from FloxHub
+
+```yml
+steps:
+  - command: netlify deploy
+    plugins:
+      - imkarrer/flox-buildkite-plugin#v1.0.0:
+          command: netlify deploy
+          environment: my-org/netlify-deploy
+          floxhub-token: BKvR...
+```
+
+Better: set the token once on the agent as an environment variable.
+
+```yml
+steps:
+  - command: netlify deploy
+    plugins:
+      - imkarrer/flox-buildkite-plugin#v1.0.0:
+          command: netlify deploy
+          environment: my-org/netlify-deploy
+```
+
+```bash
+# Agent environment or Buildkite pipeline env:
+FLOX_TOKEN=BKvR...
+```
+
+### Remote environment from another org (requires trust)
+
+```yml
+steps:
+  - command: deploy
+    plugins:
+      - imkarrer/flox-buildkite-plugin#v1.0.0:
+          command: deploy
+          environment: another-org/tools
+          floxhub-token: BKvR...
+          trust: true
 ```
 
 ### Multi-step pipeline
@@ -34,18 +79,7 @@ steps:
           command: vitest run
 ```
 
-### Remote environment from FloxHub
-
-```yml
-steps:
-  - label: ":netlify: Deploy"
-    plugins:
-      - imkarrer/flox-buildkite-plugin#v1.0.0:
-          environment: my-org/netlify-deploy
-          command: netlify deploy --prod
-```
-
-### Environment from a monorepo subdirectory
+### Monorepo subdirectory
 
 ```yml
 steps:
@@ -61,7 +95,7 @@ steps:
           command: vite build
 ```
 
-### Matrix build across environments
+### Matrix build
 
 ```yml
 steps:
@@ -99,11 +133,21 @@ steps:
 | `version` | string | latest | Pin a specific flox version |
 | `environment` | string | — | Remote FloxHub environment in `owner/name` format |
 | `dir` | string | — | Path to directory containing a `.flox/` environment |
+| `floxhub-token` | string | — | FloxHub token for remote environment auth (falls back to `FLOX_TOKEN` env var) |
+| `trust` | boolean | `false` | Trust remote environment hook (equivalent to `flox activate --trust`) |
 | `disable-metrics` | boolean | `true` | Disable anonymous usage telemetry |
+
+### Auth precedence
+
+1. `floxhub-token` plugin config
+2. `FLOX_TOKEN` environment variable (set on the agent or pipeline)
+3. If neither is set and a remote environment is requested, activation fails
+
+Local environments (`.flox/` in the repo via `dir`) need no auth.
 
 ## Docker
 
-Use a pre-baked agent image with flox pre-installed. No downloads at job time, pinned flox version, no dependency on external installers.
+Use a pre-baked agent image to skip the install step. No downloads at job time, pinned flox version.
 
 ```dockerfile
 FROM buildkite/agent:3
@@ -121,14 +165,12 @@ RUN bash <(curl -fsSL https://flox.dev/install) --channel stable --yes
 USER buildkite
 ```
 
-Build and push:
+Build, push, and configure your agents:
 
 ```bash
 docker build -t your-registry/buildkite-agent-flox:latest .
 docker push your-registry/buildkite-agent-flox:latest
 ```
-
-Configure your agents to use this image. The plugin auto-detects flox on `PATH` and skips the install step.
 
 ## Developing
 

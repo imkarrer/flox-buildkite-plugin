@@ -24,6 +24,14 @@ configuration:
       type: string
       default: ""
       description: Path to directory containing a .flox/ environment
+    floxhub-token:
+      type: string
+      default: ""
+      description: FloxHub token for authenticating remote environments
+    trust:
+      type: boolean
+      default: false
+      description: Trust remote environments (equivalent to flox activate --trust)
     disable-metrics:
       type: boolean
       default: true

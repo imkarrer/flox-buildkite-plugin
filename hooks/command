@@ -4,20 +4,20 @@ set -euo pipefail
 COMMAND="${BUILDKITE_PLUGIN_FLOX_COMMAND}"
 ENVIRONMENT="${BUILDKITE_PLUGIN_FLOX_ENVIRONMENT:-}"
 DIR="${BUILDKITE_PLUGIN_FLOX_DIR:-}"
+TRUST="${BUILDKITE_PLUGIN_FLOX_TRUST:-false}"
 DISABLE_METRICS="${BUILDKITE_PLUGIN_FLOX_DISABLE_METRICS:-true}"
 
-if [[ "$DISABLE_METRICS" == "true" ]]; then
-  export FLOX_DISABLE_METRICS=true
-fi
+[[ "$DISABLE_METRICS" == "true" ]] && export FLOX_DISABLE_METRICS=true
 
 FLOX_ARGS=()
 
 if [[ -n "$ENVIRONMENT" ]]; then
-  FLOX_ARGS+=("--remote" "$ENVIRONMENT")
+  FLOX_ARGS+=("-r" "$ENVIRONMENT")
+  [[ "$TRUST" == "true" ]] && FLOX_ARGS+=("-t")
 fi
 
 if [[ -n "$DIR" ]]; then
-  FLOX_ARGS+=("--dir" "$DIR")
+  FLOX_ARGS+=("-d" "$DIR")
 fi
 
 echo "--- :flox: Activating flox environment"
