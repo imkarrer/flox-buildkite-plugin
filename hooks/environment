@@ -1,36 +1,181 @@
 #!/bin/bash
 set -euo pipefail
 
-# --- Install flox if missing ---
-if ! command -v flox &>/dev/null; then
-  echo "--- :flox: Installing flox"
+# --- helpers ---------------------------------------------------------------
 
-  MISSING=()
-  command -v curl &>/dev/null || MISSING+=("curl")
-  command -v sudo &>/dev/null || MISSING+=("sudo")
-
-  if [[ ${#MISSING[@]} -gt 0 ]]; then
-    echo "+++ :flox: Missing prerequisites: ${MISSING[*]}"
-    echo "Use a pre-baked agent image with flox pre-installed to avoid this."
+sudo_if_needed() {
+  if [[ "${EUID:-$(id -u)}" -eq 0 ]]; then
+    "$@"
+  elif command -v sudo &>/dev/null; then
+    sudo "$@"
+  else
+    echo "+++ :flox: Need root (or sudo) to install flox, but neither is available."
+    echo "Pre-install flox on the agent, or use the Dockerfile in this repo."
     echo "See https://github.com/imkarrer/flox-buildkite-plugin#docker"
     exit 1
   fi
+}
 
-  CHANNEL="${BUILDKITE_PLUGIN_FLOX_CHANNEL:-stable}"
-  VERSION="${BUILDKITE_PLUGIN_FLOX_VERSION:-}"
+# Resolve the package download URL the same way flox/install-flox-action does:
+#   https://downloads.flox.dev/by-env/<channel>/{deb,rpm,osx}/flox[-<version>].<triple>.<ext>
+# An empty version selects the channel's latest build (unversioned filename).
+resolve_download_url() {
+  local channel="${1:-stable}"
+  local version="${2:-}"
+  local os arch pkg_dir triple ext version_part base
 
-  INSTALL_ARGS=("--channel" "$CHANNEL")
-  [[ -n "$VERSION" ]] && INSTALL_ARGS+=("--version" "$VERSION")
+  case "$(uname -s)" in
+    Linux)  os=linux ;;
+    Darwin) os=darwin ;;
+    *)
+      echo "+++ :flox: Unsupported OS: $(uname -s). Install flox manually."
+      exit 1
+      ;;
+  esac
 
-  bash <(curl -fsSL https://flox.dev/install) "${INSTALL_ARGS[@]}" --yes
+  case "$(uname -m)" in
+    x86_64|amd64)  arch=x86_64 ;;
+    aarch64|arm64) arch=aarch64 ;;
+    *)
+      echo "+++ :flox: Unsupported architecture: $(uname -m). Install flox manually."
+      exit 1
+      ;;
+  esac
 
-  command -v flox &>/dev/null || { echo "+++ :flox: flox installation failed"; exit 1; }
+  if [[ "$os" == "darwin" ]]; then
+    pkg_dir=osx
+    ext=pkg
+  elif command -v dpkg &>/dev/null; then
+    pkg_dir=deb
+    ext=deb
+  elif command -v rpm &>/dev/null; then
+    pkg_dir=rpm
+    ext=rpm
+  else
+    echo "+++ :flox: No dpkg or rpm found — flox packages are glibc .deb/.rpm only."
+    echo "Alpine/musl agents are not supported. Use buildkite/agent:3-ubuntu"
+    echo "(see the Dockerfile in this repo), or pre-install flox."
+    exit 1
+  fi
+
+  triple="${arch}-${os}"
+  version_part=""
+  [[ -n "$version" ]] && version_part="-${version}"
+
+  case "$channel" in
+    stable|qa|nightly) base="https://downloads.flox.dev/by-env/${channel}" ;;
+    *)                 base="https://downloads.flox.dev/by-commit/${channel}" ;;
+  esac
+
+  echo "${base}/${pkg_dir}/flox${version_part}.${triple}.${ext}"
+}
+
+ensure_nix_usable() {
+  # Prefer a running daemon. If none, try to start one. On systems without
+  # systemd (typical containers), flox's postinst falls back to single-user
+  # Nix and the installer may leave /nix owned by root:nixbld — take ownership
+  # so the current user can use the store (matches install-flox-action).
+  if pgrep -x nix-daemon >/dev/null 2>&1; then
+    return 0
+  fi
+
+  local daemon=""
+  if command -v nix-daemon &>/dev/null; then
+    daemon="$(command -v nix-daemon)"
+  else
+    for p in /nix/var/nix/profiles/default/bin/nix-daemon /usr/bin/nix-daemon; do
+      [[ -x "$p" ]] && daemon="$p" && break
+    done
+  fi
+
+  if [[ -n "$daemon" ]]; then
+    echo "--- :flox: Starting nix-daemon"
+    # Detach so the hook can finish; ignore failure and fall through to
+    # single-user ownership fix if the daemon cannot start.
+    if [[ "${EUID:-$(id -u)}" -eq 0 ]]; then
+      "$daemon" >/tmp/nix-daemon.log 2>&1 &
+    elif command -v sudo &>/dev/null; then
+      sudo "$daemon" >/tmp/nix-daemon.log 2>&1 &
+    fi
+    sleep 2
+    if pgrep -x nix-daemon >/dev/null 2>&1; then
+      return 0
+    fi
+  fi
+
+  if [[ "$(uname -s)" == "Linux" ]] \
+    && [[ -d /nix ]] \
+    && [[ "$(cat /proc/1/comm 2>/dev/null || true)" != "systemd" ]]; then
+    echo "--- :flox: No systemd — configuring single-user Nix ownership of /nix"
+    sudo_if_needed chown -R "$(id -u):$(id -g)" /nix
+  fi
+}
+
+install_flox() {
+  local channel="${BUILDKITE_PLUGIN_FLOX_CHANNEL:-stable}"
+  local version="${BUILDKITE_PLUGIN_FLOX_VERSION:-}"
+  local url tmp
+
+  command -v curl &>/dev/null || {
+    echo "+++ :flox: curl is required to download flox."
+    exit 1
+  }
+
+  url="$(resolve_download_url "$channel" "$version")"
+  echo "Downloading: $url"
+
+  tmp="$(mktemp -d)/$(basename "$url")"
+  curl --fail --silent --show-error --location \
+    --retry 3 --retry-delay 2 \
+    --user-agent "flox-buildkite-plugin" \
+    "$url" --output "$tmp"
+
+  echo "Installing flox package..."
+  case "$tmp" in
+    *.deb)
+      # apt resolves pre-depends (e.g. sudo); fall back to dpkg + apt -f.
+      if command -v apt-get &>/dev/null; then
+        sudo_if_needed apt-get install -y "$tmp"
+      else
+        sudo_if_needed dpkg -i --no-triggers "$tmp" || sudo_if_needed apt-get install -y -f
+      fi
+      ;;
+    *.rpm) sudo_if_needed rpm -U --replacepkgs --notriggers "$tmp" ;;
+    *.pkg) sudo_if_needed installer -pkg "$tmp" -target / ;;
+    *)
+      echo "+++ :flox: Unknown package type: $tmp"
+      exit 1
+      ;;
+  esac
+
+  rm -f "$tmp"
+  ensure_nix_usable
+
+  # Refresh PATH for packages that land outside the current shell's hash table
+  hash -r 2>/dev/null || true
+  # Common install locations if PATH is minimal
+  export PATH="/usr/local/bin:/usr/bin:${PATH:-}"
+
+  command -v flox &>/dev/null || {
+    echo "+++ :flox: flox installation finished but 'flox' is not on PATH."
+    exit 1
+  }
+}
+
+# --- Install flox if missing -----------------------------------------------
+
+if ! command -v flox &>/dev/null; then
+  echo "--- :flox: Installing flox"
+  install_flox
   echo "flox $(flox --version) installed"
 else
   echo "--- :flox: Using pre-installed flox ($(flox --version 2>/dev/null || echo '?'))"
+  # Pre-installed flox still needs a usable Nix store on cold containers.
+  ensure_nix_usable
 fi
 
-# --- Authenticate if remote environment is requested ---
+# --- Authenticate if remote environment is requested -----------------------
+
 ENVIRONMENT="${BUILDKITE_PLUGIN_FLOX_ENVIRONMENT:-}"
 FLOXHUB_TOKEN="${BUILDKITE_PLUGIN_FLOXHUB_TOKEN:-${FLOX_TOKEN:-}}"
 

@@ -3,11 +3,11 @@
 load "$BATS_PLUGIN_PATH/load.bash"
 
 setup() {
-  export BUILDKITE_PLUGIN_FLOX_COMMAND="echo hello"
+  export BUILDKITE_PLUGIN_FLOX_COMMAND="hello"
 }
 
 @test "runs command inside flox activate" {
-  stub flox 'activate -c echo hello : echo "Activated"'
+  stub flox 'activate -c hello : echo "Activated"'
 
   run "$PWD/hooks/command"
 
@@ -20,7 +20,7 @@ setup() {
 @test "uses remote environment" {
   export BUILDKITE_PLUGIN_FLOX_ENVIRONMENT="my-org/my-env"
 
-  stub flox 'activate -r my-org/my-env -c echo hello : echo "Remote activated"'
+  stub flox 'activate -r my-org/my-env -c hello : echo "Remote activated"'
 
   run "$PWD/hooks/command"
 
@@ -33,7 +33,7 @@ setup() {
 @test "uses --dir" {
   export BUILDKITE_PLUGIN_FLOX_DIR="/app"
 
-  stub flox 'activate -d /app -c echo hello : echo "Dir activated"'
+  stub flox 'activate -d /app -c hello : echo "Dir activated"'
 
   run "$PWD/hooks/command"
 
@@ -47,7 +47,7 @@ setup() {
   export BUILDKITE_PLUGIN_FLOX_ENVIRONMENT="other-org/env"
   export BUILDKITE_PLUGIN_FLOX_TRUST="true"
 
-  stub flox 'activate -r other-org/env -t -c echo hello : echo "Trusted"'
+  stub flox 'activate -r other-org/env -t -c hello : echo "Trusted"'
 
   run "$PWD/hooks/command"
 
@@ -58,7 +58,7 @@ setup() {
 }
 
 @test "fails when flox activate fails" {
-  stub flox 'activate -c echo hello : exit 1'
+  stub flox 'activate -c hello : exit 1'
 
   run "$PWD/hooks/command"
 

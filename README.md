@@ -4,7 +4,7 @@
 
 Run your Buildkite steps inside a reproducible [Flox](https://flox.dev) environment that lives in your repo. No Dockerfile, no container registry, no image tags to keep in sync — the environment travels with your code, so a dependency change and the code that needs it land in a single commit.
 
-The plugin wraps each step in `flox activate`, materializing the environment on any Linux/macOS runner: if `flox` is on `PATH` it uses it, otherwise it auto-installs. The lockfile pins every dependency to a content hash, so builds are reproducible without pre-baked runner images or a Docker supply chain to maintain.
+The plugin wraps each step in `flox activate`, materializing the environment on any Linux/macOS runner: if `flox` is on `PATH` it uses it, otherwise it downloads and installs the platform package from `downloads.flox.dev` (same URL scheme as [`install-flox-action`](https://github.com/flox/install-flox-action)). The lockfile pins every dependency to a content hash, so builds are reproducible without pre-baked runner images or a Docker supply chain to maintain.
 
 Flox ships first-class CI integrations for GitHub Actions, CircleCI, and GitLab — Buildkite is the gap this plugin fills. You *floxify* a repo once (`flox init` writes `.flox/manifest.toml`, committed alongside your code); this plugin is the Buildkite-native way to run against that environment — the counterpart to [`install-flox-action`](https://github.com/flox/install-flox-action) for GitHub Actions and the [Flox orb](https://github.com/flox/flox-orb) for CircleCI. It turns the bare `flox activate -c` you'd otherwise hand-roll in every command step into declarative plugin config: flox auto-install on ephemeral agents, FloxHub token and `trust` handling, per-directory environments for monorepos, and matrix builds.
 
@@ -201,7 +201,7 @@ steps:
 |--------|------|---------|-------------|
 | `command` | string | — | Command to run inside the Flox environment |
 | `channel` | string | `stable` | Flox release channel (`stable`, `qa`, `nightly`, or commit hash) |
-| `version` | string | latest | Pin a specific flox version |
+| `version` | string | _(empty = channel latest)_ | Pin a specific flox version (e.g. `1.14.0`) |
 | `environment` | string | — | Remote FloxHub environment in `owner/name` format |
 | `dir` | string | — | Path to directory containing a `.flox/` environment |
 | `floxhub-token` | string | — | FloxHub token for remote environment auth (falls back to `FLOX_TOKEN` env var) |
@@ -215,6 +215,21 @@ steps:
 3. If neither is set and a remote environment is requested, activation fails
 
 Local environments (`.flox/` in the repo via `dir`) need no auth.
+
+## Auto-install
+
+When `flox` is missing, the plugin installs it at job start:
+
+| Platform | Package | Notes |
+|----------|---------|-------|
+| Debian/Ubuntu (glibc) | `.deb` via `apt-get` | Resolves deps (e.g. `sudo`) |
+| RHEL/Fedora/etc. | `.rpm` | Requires `rpm` on `PATH` |
+| macOS | `.pkg` | Requires `installer` + sudo |
+| Alpine / musl | — | **Not supported** — use `buildkite/agent:3-ubuntu` |
+
+Pin with `channel` (`stable` / `qa` / `nightly` / commit hash) and optional `version`. An empty `version` pulls the channel's latest build (`flox.x86_64-linux.deb`, etc.). After install the hook starts `nix-daemon` when possible, or configures single-user Nix ownership on non-systemd hosts (matching Flox's GitHub Action).
+
+Cold agents pay a one-time ~85 MB download. Prefer a [pre-baked image](#docker) for latency-sensitive queues.
 
 ## Docker
 

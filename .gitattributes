@@ -1,0 +1,4 @@
+# Hook scripts must stay LF — bash rejects CRLF (`set: pipefail: invalid option name`).
+hooks/** text eol=lf
+*.bats text eol=lf
+.dockerignore text eol=lf
