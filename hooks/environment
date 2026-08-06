@@ -1,6 +1,12 @@
 #!/bin/bash
 set -euo pipefail
 
+# CI has no tty: tell flox which shell to use for `-c` subshells so it doesn't
+# warn about shell detection, and allow single-user Nix (no nix-daemon) to work
+# on containers that lack systemd. Both are overridable by the user.
+export FLOX_SHELL="${FLOX_SHELL:-bash}"
+export NIX_REMOTE="${NIX_REMOTE:-auto}"
+
 # --- helpers ---------------------------------------------------------------
 
 sudo_if_needed() {
@@ -162,7 +168,79 @@ install_flox() {
   }
 }
 
+# Seed the /nix cache volume from the copy baked into a custom agent image.
+# A Buildkite cache volume mounted at /nix is empty on the first build and
+# shadows the /nix baked into the image, leaving /usr/bin/flox a dangling
+# symlink. Restore it from /opt/nix-seed when cold (adapted from
+# jbayer/flox-buildkite .buildkite/lib/ensure-nix.sh).
+ensure_nix_seeded() {
+  flox --version &>/dev/null && return 0
+  [[ -d /opt/nix-seed ]] || return 0
+  echo "--- :flox: cold /nix cache volume — seeding from /opt/nix-seed"
+  sudo_if_needed cp -a /opt/nix-seed/. /nix/
+}
+
+# READ path for an S3-compatible Nix binary cache: add the cache's substituter
+# + trusted public key to /etc/nix/nix.conf (the config flox's bundled Nix
+# reads) so cold activates pull prebuilt paths from the cache instead of
+# upstream. All inputs are non-secret. Adapted from jbayer/flox-buildkite
+# .buildkite/lib/s3-cache-configure.sh.
+configure_s3_cache() {
+  local bucket="${BUILDKITE_PLUGIN_FLOX_S3_CACHE_BUCKET:-}"
+  [[ -n "$bucket" ]] || return 0
+
+  local endpoint="${BUILDKITE_PLUGIN_FLOX_S3_CACHE_ENDPOINT:-}"
+  local region="${BUILDKITE_PLUGIN_FLOX_S3_CACHE_REGION:-auto}"
+  local public_key="${BUILDKITE_PLUGIN_FLOX_S3_CACHE_PUBLIC_KEY:-}"
+  [[ -n "$endpoint" ]] || {
+    echo "+++ :flox: s3-cache-bucket is set but s3-cache-endpoint is missing."
+    exit 1
+  }
+  [[ -n "$public_key" ]] || {
+    echo "+++ :flox: s3-cache-bucket is set but s3-cache-public-key is missing."
+    exit 1
+  }
+  # aws-sdk otherwise probes the (absent) instance-metadata endpoint and stalls.
+  export AWS_EC2_METADATA_DISABLED=true
+
+  local conf=/etc/nix/nix.conf
+  local marker="flox S3 binary cache"
+  local substituter="s3://${bucket}?endpoint=${endpoint}&region=${region}"
+
+  append() {
+    if [ -w "$conf" ]; then printf '%s\n' "$1" >>"$conf"
+    else sudo_if_needed tee -a "$conf" >/dev/null <<<"$1"; fi
+  }
+
+  if grep -qF "$marker" "$conf" 2>/dev/null; then
+    echo "--- :flox: S3 cache substituter already configured in $conf (no-op)"
+  else
+    echo "+++ :flox: adding S3 cache substituter to $conf"
+    sudo_if_needed mkdir -p "$(dirname "$conf")"
+    append ""
+    append "# --- ${marker} -------------------------------------------------------"
+    append "extra-substituters = ${substituter}"
+    append "extra-trusted-public-keys = ${public_key}"
+  fi
+
+  # Reads of a PRIVATE bucket need the access key. Prefer the job environment;
+  # fall back to Buildkite cluster secrets.
+  if [[ -z "${AWS_ACCESS_KEY_ID:-}" ]] && command -v buildkite-agent &>/dev/null; then
+    export AWS_ACCESS_KEY_ID="$(buildkite-agent secret get S3_CACHE_ACCESS_KEY_ID 2>/dev/null || true)"
+    export AWS_SECRET_ACCESS_KEY="$(buildkite-agent secret get S3_CACHE_SECRET_ACCESS_KEY 2>/dev/null || true)"
+  fi
+
+  echo "--- :flox: effective substituters / trusted keys"
+  if command -v nix &>/dev/null; then
+    nix --extra-experimental-features 'nix-command' config show 2>/dev/null \
+      | grep -E '^(substituters|trusted-public-keys) ' \
+      | sed 's#\?endpoint=[^ ]*##' || true
+  fi
+}
+
 # --- Install flox if missing -----------------------------------------------
+
+ensure_nix_seeded
 
 if ! command -v flox &>/dev/null; then
   echo "--- :flox: Installing flox"
@@ -173,6 +251,10 @@ else
   # Pre-installed flox still needs a usable Nix store on cold containers.
   ensure_nix_usable
 fi
+
+# --- Configure S3 binary cache (read path) ---------------------------------
+
+configure_s3_cache
 
 # --- Authenticate if remote environment is requested -----------------------
 

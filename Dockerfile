@@ -35,5 +35,59 @@ RUN mkdir -p /docker-entrypoint.d \
       > /docker-entrypoint.d/10-nix-daemon \
     && chmod +x /docker-entrypoint.d/10-nix-daemon
 
+# Single-user Nix fallback: when the daemon isn't running (e.g. no systemd in
+# containers) NIX_REMOTE=auto makes the bundled Nix operate on /nix/store
+# directly, so flox still works. Adapted from jbayer/flox-buildkite.
+ENV NIX_REMOTE=auto
+
+# Make the store usable by whatever user the agent runs jobs as. Buildkite
+# forbids changing USER/UID/GID, so we can't chown to a user we create.
+RUN chmod -R a+rwX /nix
+
+# --- Optional: bake an S3 binary-cache READ path into the image ---------------
+# Same idea as jbayer/flox-buildkite's agent image: the substituter pointer is
+# NON-SECRET (bucket, endpoint, region, public key), so it can live in the image
+# as reliable phase-1 config — every build has it with no runtime step. When
+# S3_CACHE_BUCKET is set, write the substituter + trusted key into
+# /etc/nix/nix.conf (the file flox's bundled Nix reads). Empty = skip.
+ARG S3_CACHE_BUCKET=""
+ARG S3_CACHE_ENDPOINT=""
+ARG S3_CACHE_REGION="auto"
+ARG S3_CACHE_PUBLIC_KEY=""
+RUN set -eux; \
+    if [ -n "$S3_CACHE_BUCKET" ]; then \
+        { \
+          echo ""; \
+          echo "# --- flox S3 binary cache ---"; \
+          echo "extra-substituters = s3://${S3_CACHE_BUCKET}?endpoint=${S3_CACHE_ENDPOINT}&region=${S3_CACHE_REGION}"; \
+          echo "extra-trusted-public-keys = ${S3_CACHE_PUBLIC_KEY}"; \
+        } >>/etc/nix/nix.conf; \
+        echo "baked S3 cache substituter into /etc/nix/nix.conf"; \
+    fi
+
+# --- Optional: seed common packages into the store -----------------------------
+# Packages baked into the Nix store at build time so cold builds don't re-download
+# them. Edit the SEED_PACKAGES default below — a space-separated list of Flox
+# pkg-paths, e.g. "nodejs python3 go". Set to "" to bake nothing beyond flox.
+# `hello` mirrors the CI smoke-test sentinel in examples/hello/.flox.
+# A baked package only yields a runtime cache hit when a project env resolves to
+# the SAME store path (same version, same catalog) — bake the versions your
+# projects actually use.
+ARG SEED_PACKAGES="hello"
+RUN set -eux; \
+    if [ -n "$SEED_PACKAGES" ]; then \
+        mkdir -p /opt/seed-env; \
+        cd /opt/seed-env; \
+        flox init; \
+        flox install $SEED_PACKAGES; \
+        flox list; \
+    fi
+
+# Stash the baked Nix store outside /nix so a /nix cache volume (empty on the
+# first build) can be seeded from it at runtime — the plugin's environment hook
+# restores it when the volume mounts cold. Hardlink the copy (-l) so it costs
+# ~no extra image space; fall back to a real copy if hardlinks aren't possible.
+RUN cp -al /nix /opt/nix-seed || cp -a /nix /opt/nix-seed
+
 # The Ubuntu agent image runs as root (there is no `buildkite` user), which is
 # also required for the Nix daemon to manage the store.

@@ -58,7 +58,7 @@ flox install nodejs_22 pnpm
 That writes `.flox/manifest.toml`:
 
 ```toml
-version = 1
+schema-version = "1.14.0"
 
 [install]
 nodejs_22.pkg-path = "nodejs_22"
@@ -205,7 +205,13 @@ steps:
 | `environment` | string | — | Remote FloxHub environment in `owner/name` format |
 | `dir` | string | — | Path to directory containing a `.flox/` environment |
 | `floxhub-token` | string | — | FloxHub token for remote environment auth (falls back to `FLOX_TOKEN` env var) |
+| `activation-mode` | string | _(empty = manifest default)_ | Activate in `dev` or `run` mode (equivalent to `flox activate -m`, overrides `options.activate.mode` in the manifest) |
 | `trust` | boolean | `false` | Trust remote environment hook (equivalent to `flox activate --trust`) |
+| `s3-cache-bucket` | string | — | S3-compatible Nix binary cache bucket (e.g. `flox-binary-cache`). Empty disables the cache |
+| `s3-cache-endpoint` | string | — | Full S3 endpoint URL (R2: `https://<ACCOUNT_ID>.r2.cloudflarestorage.com` · AWS: `https://s3.<region>.amazonaws.com` · MinIO: `https://minio.example.com:9000`) |
+| `s3-cache-region` | string | `auto` | S3 region for the cache (`auto` for R2) |
+| `s3-cache-public-key` | string | — | Trusted Nix cache public key (`cache-name-1:base64=`) |
+| `s3-cache-push` | boolean | `false` | Write back (push) the activated environment's closure to the cache after the step (needs `S3_CACHE_SIGNING_KEY`) |
 | `disable-metrics` | boolean | `true` | Disable anonymous usage telemetry |
 
 ### Auth precedence
@@ -215,6 +221,84 @@ steps:
 3. If neither is set and a remote environment is requested, activation fails
 
 Local environments (`.flox/` in the repo via `dir`) need no auth.
+
+## Caching
+
+Cold agents pay a one-time flox install (~85 MB) plus the cost of realizing your
+environment's packages from upstream on first use. The plugin can layer a
+**Nix binary cache** on top so every build pulls prebuilt store paths from
+nearby durable storage instead of upstream — the approach and scripts are
+adapted from [jbayer/flox-buildkite](https://github.com/jbayer/flox-buildkite).
+
+### S3-compatible binary cache (read)
+
+Configuring the plugin with a bucket, endpoint, and trusted public key writes
+an `extra-substituters` + `extra-trusted-public-keys` block into
+`/etc/nix/nix.conf` (the file flox's bundled Nix reads), so a cold `flox
+activate` substitutes already-built paths from the cache:
+
+```yml
+steps:
+  - command: pnpm install && pnpm build
+    plugins:
+      - imkarrer/flox#v1.0.0:
+          command: pnpm install && pnpm build
+          s3-cache-bucket: flox-binary-cache
+          s3-cache-endpoint: https://<ACCOUNT_ID>.r2.cloudflarestorage.com
+          s3-cache-region: auto
+          s3-cache-public-key: flox-binary-cache-1:base64=
+```
+
+Works with any S3-compatible object store (AWS S3, CloudFlare R2, MinIO, Ceph
+RGW, Backblaze B2, …). Reads of a **private** bucket need the access key in the
+job environment (`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`) or as
+`S3_CACHE_ACCESS_KEY_ID` / `S3_CACHE_SECRET_ACCESS_KEY` cluster secrets; a
+public-read bucket works without credentials. The substituter pointer is
+non-secret, so you can also bake it into the [agent image](#docker) instead.
+
+### Write-back (opt-in)
+
+Set `s3-cache-push: true` to push the activated environment's closure back to
+the cache after each step — signed, so the *next* cold build trusts it. Needs
+the Nix signing key as `S3_CACHE_SIGNING_KEY` (or `S3_CACHE_SIGNING_KEY_FILE`)
+in the job environment or as a `S3_CACHE_SIGNING_KEY` cluster secret:
+
+```yml
+steps:
+  - command: pnpm install && pnpm build
+    plugins:
+      - imkarrer/flox#v1.0.0:
+          command: pnpm install && pnpm build
+          s3-cache-bucket: flox-binary-cache
+          s3-cache-endpoint: https://<ACCOUNT_ID>.r2.cloudflarestorage.com
+          s3-cache-public-key: flox-binary-cache-1:base64=
+          s3-cache-push: true
+```
+
+> **Guard the signing key.** Anyone holding it can place *trusted* paths in
+> your cache. Keep it only in Buildkite secrets, never in the image or repo;
+> the plugin writes it to a `0600` temp file and deletes it on exit.
+
+Generate a keypair once with:
+
+```bash
+nix --extra-experimental-features nix-command key generate-secret \
+    --key-name flox-binary-cache-1 > secret.key
+nix --extra-experimental-features nix-command key convert-secret-to-public \
+    < secret.key > public.key
+```
+
+`public.key` is the non-secret `s3-cache-public-key`; `secret.key`'s text is
+`S3_CACHE_SIGNING_KEY`.
+
+### `/nix` cache volume (custom agent image)
+
+With the [pre-baked image](#docker) you can attach a Buildkite `/nix` cache
+volume to your queue to keep the packages your env pulls warm across builds.
+The volume shadows the image's `/nix`, so when it mounts cold the plugin's
+environment hook restores the store from `/opt/nix-seed` (the copy the
+Dockerfile stashes outside `/nix`) before running anything. This is
+best-effort — a binary cache is the reliable complement.
 
 ## Auto-install
 
@@ -227,17 +311,18 @@ When `flox` is missing, the plugin installs it at job start:
 | macOS | `.pkg` | Requires `installer` + sudo |
 | Alpine / musl | — | **Not supported** — use `buildkite/agent:3-ubuntu` |
 
-Pin with `channel` (`stable` / `qa` / `nightly` / commit hash) and optional `version`. An empty `version` pulls the channel's latest build (`flox.x86_64-linux.deb`, etc.). After install the hook starts `nix-daemon` when possible, or configures single-user Nix ownership on non-systemd hosts (matching Flox's GitHub Action).
-
-Cold agents pay a one-time ~85 MB download. Prefer a [pre-baked image](#docker) for latency-sensitive queues.
+Pin with `channel` (`stable` / `qa` / `nightly` / commit hash) and optional `version`. An empty `version` pulls the channel's latest build (`flox.x86_64-linux.deb`, etc.). After install the hook starts `nix-daemon` when possible, or configures single-user Nix ownership on non-systemd hosts (matching Flox's GitHub Action). The hook also exports `FLOX_SHELL=bash` (silences CI's no-tty shell-detection warning) and `NIX_REMOTE=auto` (single-user Nix fallback) when unset.
 
 ## Docker
 
 Use a pre-baked agent image to skip the install step — no downloads at job time, pinned flox version. See the [`Dockerfile`](Dockerfile) in this repo, which:
 
 - bases on `buildkite/agent:3-ubuntu` (flox ships glibc packages and does not run on the default Alpine `buildkite/agent:3` image),
-- installs flox from its `.deb` package (arch-aware, pinned via the `FLOX_VERSION` build arg), and
-- starts the Nix daemon on boot via a `/docker-entrypoint.d` hook, which flox requires.
+- installs flox from its `.deb` package (arch-aware, pinned via the `FLOX_VERSION` build arg),
+- starts the Nix daemon on boot via a `/docker-entrypoint.d` hook, which flox requires (with `NIX_REMOTE=auto` as a single-user fallback),
+- optionally bakes an S3 cache substituter into `/etc/nix/nix.conf` (via the `S3_CACHE_BUCKET` / `S3_CACHE_ENDPOINT` / `S3_CACHE_REGION` / `S3_CACHE_PUBLIC_KEY` build args),
+- optionally bakes common packages into the store via the `SEED_PACKAGES` build arg (e.g. `--build-arg SEED_PACKAGES="nodejs python3 go"`), and
+- stashes the baked store at `/opt/nix-seed` so a cold `/nix` cache volume can be restored by the plugin at job start.
 
 Build, push, and configure your agents:
 
@@ -248,16 +333,22 @@ docker push your-registry/buildkite-agent-flox:latest
 
 ## Developing
 
+The repo root carries a Flox environment (`.flox/`) providing the dev toolchain, so `flox activate` is the only setup you need:
+
+```shell
+flox activate -c "docker compose run --rm tests"
+```
+
 Run the bats unit tests (they stub `flox`, so no account or network needed):
 
 ```shell
-docker-compose run --rm tests
+flox activate -c "docker compose run --rm tests"
 ```
 
 Lint the plugin definition:
 
 ```shell
-docker-compose run --rm lint
+flox activate -c "docker compose run --rm lint"
 ```
 
 These run on every push and pull request via [GitHub Actions](.github/workflows/ci.yml), alongside a real `flox activate` smoke test using [`flox/install-flox-action`](https://github.com/flox/install-flox-action):
@@ -275,6 +366,28 @@ flox install -d examples/hello hello
 ```
 
 Commit the resulting `examples/hello/.flox/` so the lockfile is pinned. For the remote-environment step, `flox push -d examples/hello` and set `FLOX_TOKEN` on the agent.
+
+## Credits
+
+This plugin's caching layer is adapted from
+[jbayer/flox-buildkite](https://github.com/jbayer/flox-buildkite) by
+[James Bayer](https://github.com/jbayer). That repo is a copy-paste template of
+scripts and pipeline snippets; this plugin ships the same ideas as declarative
+plugin configuration (set a few config keys instead of pasting shell scripts
+into every pipeline). The specific pieces and their sources:
+
+| Plugin component | Adapted from |
+| --- | --- |
+| `hooks/environment` — `configure_s3_cache()`: S3 **read** path, appends `extra-substituters` / `extra-trusted-public-keys` to `/etc/nix/nix.conf` | [`s3-cache-configure.sh`](https://github.com/jbayer/flox-buildkite/blob/main/.buildkite/lib/s3-cache-configure.sh) |
+| `hooks/environment` — `ensure_nix_seeded()`: cold `/nix` cache-volume restore from `/opt/nix-seed` | [`ensure-nix.sh`](https://github.com/jbayer/flox-buildkite/blob/main/.buildkite/lib/ensure-nix.sh) |
+| `hooks/post-command` — S3 **write-back**: signed push of the activated environment's closure | [`s3-cache-push.sh`](https://github.com/jbayer/flox-buildkite/blob/main/.buildkite/lib/s3-cache-push.sh) |
+| `Dockerfile` — `NIX_REMOTE=auto` single-user fallback, S3 cache baked into `/etc/nix/nix.conf`, `SEED_PACKAGES` baked into the store, `/opt/nix-seed` stash for cold `/nix` volumes | [`agent-image/Dockerfile`](https://github.com/jbayer/flox-buildkite/blob/main/.buildkite/agent-image/Dockerfile) |
+
+jbayer's repo carries no license file, so attribution lives here in the README
+and in per-file headers on `hooks/environment`, `hooks/post-command`, and the
+`Dockerfile`. If the caching features are useful to you, a star on
+[jbayer/flox-buildkite](https://github.com/jbayer/flox-buildkite) is the
+original work a thank-you goes to.
 
 ## License
 

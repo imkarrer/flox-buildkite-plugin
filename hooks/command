@@ -5,6 +5,7 @@ COMMAND="${BUILDKITE_PLUGIN_FLOX_COMMAND}"
 ENVIRONMENT="${BUILDKITE_PLUGIN_FLOX_ENVIRONMENT:-}"
 DIR="${BUILDKITE_PLUGIN_FLOX_DIR:-}"
 TRUST="${BUILDKITE_PLUGIN_FLOX_TRUST:-false}"
+MODE="${BUILDKITE_PLUGIN_FLOX_ACTIVATION_MODE:-}"
 DISABLE_METRICS="${BUILDKITE_PLUGIN_FLOX_DISABLE_METRICS:-true}"
 
 [[ "$DISABLE_METRICS" == "true" ]] && export FLOX_DISABLE_METRICS=true
@@ -20,6 +21,18 @@ if [[ -n "$DIR" ]]; then
   FLOX_ARGS+=("-d" "$DIR")
 fi
 
+if [[ -n "$MODE" ]]; then
+  FLOX_ARGS+=("-m" "$MODE")
+fi
+
 echo "--- :flox: Activating flox environment"
-echo "Running: flox activate ${FLOX_ARGS[*]} -c ${COMMAND}"
-exec flox activate "${FLOX_ARGS[@]}" -c "${COMMAND}"
+# Branch instead of expanding the array when empty: under `set -u`, bash 3.2
+# script-file execution (and bash 4.0–4.3) aborts on "${arr[@]}"/"${arr[*]}"
+# with no elements, and the `:-` fallback yields a spurious empty word.
+if [[ ${#FLOX_ARGS[@]} -gt 0 ]]; then
+  echo "Running: flox activate ${FLOX_ARGS[*]} -c ${COMMAND}"
+  exec flox activate "${FLOX_ARGS[@]}" -c "${COMMAND}"
+else
+  echo "Running: flox activate -c ${COMMAND}"
+  exec flox activate -c "${COMMAND}"
+fi
