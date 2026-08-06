@@ -43,7 +43,7 @@ configuration:
     s3-cache-endpoint:
       type: string
       default: ""
-      description: Full S3 endpoint URL (R2: https://<ACCOUNT_ID>.r2.cloudflarestorage.com · AWS: https://s3.<region>.amazonaws.com · MinIO: https://minio.example.com:9000)
+      description: "Full S3 endpoint URL (R2: https://<ACCOUNT_ID>.r2.cloudflarestorage.com · AWS: https://s3.<region>.amazonaws.com · MinIO: https://minio.example.com:9000)"
     s3-cache-region:
       type: string
       default: auto
