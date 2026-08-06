@@ -371,10 +371,33 @@ Commit the resulting `examples/hello/.flox/` so the lockfile is pinned. For the 
 
 This plugin's caching layer is adapted from
 [jbayer/flox-buildkite](https://github.com/jbayer/flox-buildkite) by
-[James Bayer](https://github.com/jbayer). That repo is a copy-paste template of
-scripts and pipeline snippets; this plugin ships the same ideas as declarative
-plugin configuration (set a few config keys instead of pasting shell scripts
-into every pipeline). The specific pieces and their sources:
+[James Bayer](https://github.com/jbayer).
+
+### What each repo offers
+
+| | [jbayer/flox-buildkite](https://github.com/jbayer/flox-buildkite) | [imkarrer/flox-buildkite-plugin](https://github.com/imkarrer/flox-buildkite-plugin) (this plugin) |
+| --- | --- | --- |
+| **Form** | Copy-paste template — standalone shell scripts + pipeline snippets you paste into each build | Declarative Buildkite plugin — set config keys under `plugins:` and the hooks handle the rest |
+| **S3 binary cache — read** | `s3-cache-configure.sh` appends the substituter + trusted key to `/etc/nix/nix.conf` | `s3-cache-bucket` / `-endpoint` / `-region` / `-public-key` → `hooks/environment:configure_s3_cache()` |
+| **S3 binary cache — write** | `s3-cache-push.sh` signs and pushes the step's closure after the job | `s3-cache-push: true` → `hooks/post-command` |
+| **Cold `/nix` volume** | `ensure-nix.sh` restores the store from `/opt/nix-seed` on cold mounts | same logic in `hooks/environment:ensure_nix_seeded()` |
+| **Agent image** | Dockerfile bakes `NIX_REMOTE=auto`, the S3 substituter, `SEED_PACKAGES`, and the `/opt/nix-seed` stash | the same ENV/ARGs in this repo's `Dockerfile` |
+| **Remote (FloxHub) envs** | not covered | `environment` / `floxhub-token` / `trust` config |
+| **flox auto-install** | separate `linux-install-flox.sh` / `macos-install-flox.sh` scripts to copy into the image | `channel` / `version` config → install step in `hooks/environment` |
+| **Per-build wiring** | paste `S3_CACHE_*` env vars and `source …` lines into every pipeline step | one `plugins:` block per step — nothing to copy |
+
+### Why these ideas were adopted
+
+jbayer's scripts solve real cold-build problems — S3 substituters, signed
+write-back, `/nix` seeding, single-user Nix — but each fix ships as a script to
+copy into an agent image and `source` in every pipeline. That works, yet it is
+easy to get subtly wrong and to let drift: one pipeline misses the `source`
+line, another uses a stale copy, and the cache stops helping. This plugin
+already owned the pieces jbayer's repo doesn't cover (auto-install, remote
+FloxHub environments, per-step configuration), so the natural move was to adopt
+those caching ideas as declarative config: one plugin, versioned and tested in
+one place, wired into every step by a single `plugins:` block. The specific
+pieces and their sources:
 
 | Plugin component | Adapted from |
 | --- | --- |
