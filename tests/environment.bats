@@ -12,7 +12,9 @@ teardown() {
 }
 
 @test "environment hook skips S3 cache setup when no cache is configured" {
-  stub flox '--version : echo "flox 1.14.0"'
+  # The hook probes `flox --version` twice: once in ensure_nix_seeded(), once
+  # in the "Using pre-installed flox" branch — one plan line per invocation.
+  stub flox '--version : echo "flox 1.14.0"' '--version : echo "flox 1.14.0"'
 
   run "$PWD/hooks/environment"
 
@@ -25,7 +27,7 @@ teardown() {
 
 @test "environment hook fails loudly when s3-cache-bucket is set but endpoint is missing" {
   export BUILDKITE_PLUGIN_FLOX_S3_CACHE_BUCKET="my-cache"
-  stub flox '--version : echo "flox 1.14.0"'
+  stub flox '--version : echo "flox 1.14.0"' '--version : echo "flox 1.14.0"'
 
   run "$PWD/hooks/environment"
 
@@ -40,7 +42,7 @@ teardown() {
   export BUILDKITE_PLUGIN_FLOX_S3_CACHE_ENDPOINT="https://example.com"
   export BUILDKITE_PLUGIN_FLOX_S3_CACHE_REGION="auto"
   export BUILDKITE_PLUGIN_FLOX_S3_CACHE_PUBLIC_KEY="my-cache-1:abc"
-  stub flox '--version : echo "flox 1.14.0"'
+  stub flox '--version : echo "flox 1.14.0"' '--version : echo "flox 1.14.0"'
 
   run "$PWD/hooks/environment"
 
