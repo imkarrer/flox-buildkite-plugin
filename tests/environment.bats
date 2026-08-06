@@ -4,11 +4,13 @@ load "$BATS_PLUGIN_PATH/load.bash"
 
 setup() {
   export BUILDKITE_PLUGIN_FLOX_COMMAND="hello"
-  rm -f /etc/nix/nix.conf
+  # Point the hook's nix.conf at a per-test temp file (FLOX_NIX_CONF is honored
+  # by configure_s3_cache) so the suite runs rootless, with no sudo.
+  export FLOX_NIX_CONF="${BATS_TEST_TMPDIR}/nix/nix.conf"
 }
 
 teardown() {
-  rm -f /etc/nix/nix.conf
+  rm -f "${FLOX_NIX_CONF}"
 }
 
 @test "environment hook skips S3 cache setup when no cache is configured" {
@@ -20,7 +22,7 @@ teardown() {
 
   assert_success
   refute_output --partial "S3 cache substituter"
-  refute test -e /etc/nix/nix.conf
+  refute test -e "${FLOX_NIX_CONF}"
 
   unstub flox
 }
@@ -48,8 +50,8 @@ teardown() {
 
   assert_success
   assert_output --partial "adding S3 cache substituter"
-  grep -q "extra-substituters = s3://my-cache?endpoint=https://example.com&region=auto" /etc/nix/nix.conf
-  grep -q "extra-trusted-public-keys = my-cache-1:abc" /etc/nix/nix.conf
+  grep -q "extra-substituters = s3://my-cache?endpoint=https://example.com&region=auto" "${FLOX_NIX_CONF}"
+  grep -q "extra-trusted-public-keys = my-cache-1:abc" "${FLOX_NIX_CONF}"
 
   unstub flox
 }

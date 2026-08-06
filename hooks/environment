@@ -203,9 +203,21 @@ configure_s3_cache() {
   # aws-sdk otherwise probes the (absent) instance-metadata endpoint and stalls.
   export AWS_EC2_METADATA_DISABLED=true
 
-  local conf=/etc/nix/nix.conf
+  # Overridable so rootless agents and tests can point the config anywhere
+  # (e.g. a per-run temp dir); CI and real agents keep the default flox reads.
+  local conf="${FLOX_NIX_CONF:-/etc/nix/nix.conf}"
   local marker="flox S3 binary cache"
   local substituter="s3://${bucket}?endpoint=${endpoint}&region=${region}"
+
+  # Create the config (and its parent dir) as the current user when possible,
+  # falling back to root. Ensures `[ -w "$conf" ]` in append() is deterministic.
+  ensure_config_file() {
+    if mkdir -p "$(dirname "$conf")" 2>/dev/null && touch "$conf" 2>/dev/null; then
+      return 0
+    fi
+    sudo_if_needed mkdir -p "$(dirname "$conf")"
+    sudo_if_needed touch "$conf"
+  }
 
   append() {
     if [ -w "$conf" ]; then printf '%s\n' "$1" >>"$conf"
@@ -216,7 +228,7 @@ configure_s3_cache() {
     echo "--- :flox: S3 cache substituter already configured in $conf (no-op)"
   else
     echo "+++ :flox: adding S3 cache substituter to $conf"
-    sudo_if_needed mkdir -p "$(dirname "$conf")"
+    ensure_config_file
     append ""
     append "# --- ${marker} -------------------------------------------------------"
     append "extra-substituters = ${substituter}"

@@ -345,6 +345,12 @@ Run the bats unit tests (they stub `flox`, so no account or network needed):
 flox activate -c "docker compose run --rm tests"
 ```
 
+No Docker? Run the identical suite locally, rootless — the same bats stack CI uses (bats-core 1.10.0, Buildkite's `bats-mock` fork, bats-assert/file/support) is downloaded once into the gitignored `.bats-libs/`:
+
+```shell
+scripts/test-local.sh
+```
+
 Lint the plugin definition:
 
 ```shell
