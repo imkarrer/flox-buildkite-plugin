@@ -1,0 +1,83 @@
+#!/bin/bash
+set -euo pipefail
+
+# WRITE path for the S3 binary cache: push the activated environment's closure
+# back to the cache, signed, so the NEXT cold build substitutes it instead of
+# re-downloading from upstream. Adapted from jbayer/flox-buildkite
+# .buildkite/lib/s3-cache-push.sh.
+#
+# Opt-in and idempotent: this is a no-op unless s3-cache-push is enabled AND
+# s3-cache-bucket is set, so standard pipelines are unaffected.
+BUCKET="${BUILDKITE_PLUGIN_FLOX_S3_CACHE_BUCKET:-}"
+ENDPOINT="${BUILDKITE_PLUGIN_FLOX_S3_CACHE_ENDPOINT:-}"
+REGION="${BUILDKITE_PLUGIN_FLOX_S3_CACHE_REGION:-auto}"
+PUSH="${BUILDKITE_PLUGIN_FLOX_S3_CACHE_PUSH:-false}"
+
+[[ -n "$BUCKET" ]] || {
+  echo "--- :flox: no S3 cache configured; skipping write-back"
+  exit 0
+}
+[[ "$PUSH" == "true" ]] || {
+  echo "--- :flox: S3 cache write-back is opt-in (s3-cache-push); read-only, skipping push"
+  exit 0
+}
+[[ -n "$ENDPOINT" ]] || {
+  echo "+++ :flox: s3-cache-bucket is set but s3-cache-endpoint is missing."
+  exit 1
+}
+
+# The S3 access key authenticates reads AND writes of the bucket. Prefer the
+# job environment; fall back to Buildkite cluster secrets.
+if [[ -z "${AWS_ACCESS_KEY_ID:-}" ]] && command -v buildkite-agent &>/dev/null; then
+  AWS_ACCESS_KEY_ID="$(buildkite-agent secret get S3_CACHE_ACCESS_KEY_ID 2>/dev/null || true)"
+  AWS_SECRET_ACCESS_KEY="$(buildkite-agent secret get S3_CACHE_SECRET_ACCESS_KEY 2>/dev/null || true)"
+fi
+[[ -n "${AWS_ACCESS_KEY_ID:-}" && -n "${AWS_SECRET_ACCESS_KEY:-}" ]] || {
+  echo "+++ :flox: S3 cache push needs AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY"
+  echo "        (set them in the job env or as S3_CACHE_ACCESS_KEY_ID / S3_CACHE_SECRET_ACCESS_KEY cluster secrets)."
+  exit 1
+}
+
+# The signing key is the credential that matters most — anyone holding it can
+# place trusted paths in your cache. Resolve it into a 0600 temp file, use it,
+# and delete it on exit. Never echoed.
+keyfile="${S3_CACHE_SIGNING_KEY_FILE:-}"
+tmpkey=""
+if [[ -z "$keyfile" ]]; then
+  if [[ -z "${S3_CACHE_SIGNING_KEY:-}" ]] && command -v buildkite-agent &>/dev/null; then
+    S3_CACHE_SIGNING_KEY="$(buildkite-agent secret get S3_CACHE_SIGNING_KEY 2>/dev/null || true)"
+  fi
+  [[ -n "${S3_CACHE_SIGNING_KEY:-}" ]] || {
+    echo "+++ :flox: S3 cache push needs S3_CACHE_SIGNING_KEY (or S3_CACHE_SIGNING_KEY_FILE)."
+    exit 1
+  }
+  tmpkey="$(mktemp)"
+  keyfile="$tmpkey"
+  ( umask 177; printf '%s' "$S3_CACHE_SIGNING_KEY" >"$keyfile" )
+fi
+cleanup() { [[ -n "$tmpkey" ]] && rm -f "$tmpkey"; return 0; }
+trap cleanup EXIT
+
+# aws-sdk otherwise probes the (absent) instance-metadata endpoint and stalls.
+export AWS_EC2_METADATA_DISABLED=true
+
+S3="s3://${BUCKET}?endpoint=${ENDPOINT}&region=${REGION}&secret-key=${keyfile}"
+
+# Push the closure of the environment this step activated (honoring the same
+# -r / -d selection the command hook used).
+FLOX_ARGS=()
+[[ -n "${BUILDKITE_PLUGIN_FLOX_ENVIRONMENT:-}" ]] && FLOX_ARGS+=("-r" "${BUILDKITE_PLUGIN_FLOX_ENVIRONMENT}")
+[[ -n "${BUILDKITE_PLUGIN_FLOX_DIR:-}" ]] && FLOX_ARGS+=("-d" "${BUILDKITE_PLUGIN_FLOX_DIR}")
+
+# `cd … && pwd -P` resolves the $FLOX_ENV symlink to its store path portably
+# (macOS readlink lacks -f before 12.3). Expand the array only when non-empty:
+# under `set -u`, bash < 4.4 aborts on "${arr[@]}" for an empty array.
+if [[ ${#FLOX_ARGS[@]} -gt 0 ]]; then
+  envpath="$(flox activate "${FLOX_ARGS[@]}" -- bash -c 'cd "$FLOX_ENV" && pwd -P')"
+else
+  envpath="$(flox activate -- bash -c 'cd "$FLOX_ENV" && pwd -P')"
+fi
+
+echo "+++ :flox: pushing $(basename "$envpath") + closure to s3://${BUCKET} (signed)"
+nix --extra-experimental-features 'nix-command' copy --to "$S3" "$envpath"
+echo "--- :flox: push complete"

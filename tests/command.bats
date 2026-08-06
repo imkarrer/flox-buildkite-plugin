@@ -57,6 +57,19 @@ setup() {
   unstub flox
 }
 
+@test "passes activation mode" {
+  export BUILDKITE_PLUGIN_FLOX_ACTIVATION_MODE="run"
+
+  stub flox 'activate -m run -c hello : echo "Run mode activated"'
+
+  run "$PWD/hooks/command"
+
+  assert_success
+  assert_output --partial "Run mode activated"
+
+  unstub flox
+}
+
 @test "fails when flox activate fails" {
   stub flox 'activate -c hello : exit 1'
 
