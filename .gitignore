@@ -2,3 +2,6 @@
 *.swp
 *.swo
 .bats-libs/
+
+# Rendered talk decks; rebuild with `make -C docs/talks`.
+docs/talks/build/

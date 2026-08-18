@@ -1,0 +1,10 @@
+[vars]
+API_PORT = "8080"
+
+[hook]
+on-activate = '''
+  echo "env ready: node $(node --version), API_PORT=$API_PORT"
+'''
+
+[services]
+api.command = "node -e 'require(\"http\").createServer((_,r)=>r.end(\"hi\\n\")).listen(process.env.API_PORT)'"

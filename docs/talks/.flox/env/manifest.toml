@@ -1,0 +1,35 @@
+schema-version = "1.14.0"
+
+# Toolchain for building the talk deck. A talk arguing that environments belong
+# in the repo should not be built with an unpinned `npx ...@latest`.
+
+[install]
+marp-cli.pkg-path = "marp-cli"
+
+# Flox's brand typeface. Pinned here so the deck renders with correct metrics
+# offline; theme/flox.css also imports it from Google Fonts as a fallback.
+geist-font.pkg-path = "geist-font"
+
+# Marp shells out to a browser for PDF, PPTX, and PNG export; HTML needs none.
+# The catalog ships chromium on Linux only (see `flox show chromium`), so it's
+# scoped there and the hook falls back to a system Chrome on macOS.
+chromium.pkg-path = "chromium"
+chromium.systems = ["aarch64-linux", "x86_64-linux"]
+
+[hook]
+on-activate = '''
+  # Marp locates a browser via CHROME_PATH. Prefer the pinned one; fall back to
+  # a system Chrome so macOS without a catalog chromium can still export.
+  if [ -z "${CHROME_PATH:-}" ]; then
+    for _candidate in \
+      "$FLOX_ENV/bin/chromium" \
+      "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+      "/Applications/Chromium.app/Contents/MacOS/Chromium"; do
+      if [ -x "$_candidate" ]; then
+        export CHROME_PATH="$_candidate"
+        break
+      fi
+    done
+    unset _candidate
+  fi
+'''

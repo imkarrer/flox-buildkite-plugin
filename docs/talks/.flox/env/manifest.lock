@@ -1,0 +1,333 @@
+{
+  "lockfile-version": 1,
+  "manifest": {
+    "schema-version": "1.14.0",
+    "install": {
+      "chromium": {
+        "pkg-path": "chromium",
+        "systems": [
+          "aarch64-linux",
+          "x86_64-linux"
+        ]
+      },
+      "geist-font": {
+        "pkg-path": "geist-font"
+      },
+      "marp-cli": {
+        "pkg-path": "marp-cli"
+      }
+    },
+    "hook": {
+      "on-activate": "  # Marp locates a browser via CHROME_PATH. Prefer the pinned one; fall back to\n  # a system Chrome so macOS without a catalog chromium can still export.\n  if [ -z \"${CHROME_PATH:-}\" ]; then\n    for _candidate in \\\n      \"$FLOX_ENV/bin/chromium\" \\\n      \"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome\" \\\n      \"/Applications/Chromium.app/Contents/MacOS/Chromium\"; do\n      if [ -x \"$_candidate\" ]; then\n        export CHROME_PATH=\"$_candidate\"\n        break\n      fi\n    done\n    unset _candidate\n  fi\n"
+    },
+    "options": {}
+  },
+  "packages": [
+    {
+      "attr_path": "chromium",
+      "broken": false,
+      "derivation": "/nix/store/qkg6qvcf7w2k3y72rr10nhf86ssvc4s2-chromium-150.0.7871.46.drv",
+      "description": "Open source web browser from Google",
+      "install_id": "chromium",
+      "license": "BSD-3-Clause",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=d407951447dcd00442e97087bf374aad70c04cea",
+      "name": "chromium-150.0.7871.46",
+      "pname": "chromium",
+      "rev": "d407951447dcd00442e97087bf374aad70c04cea",
+      "rev_count": 1027867,
+      "rev_date": "2026-07-05T04:06:12Z",
+      "scrape_date": "2026-07-06T03:41:21.757303Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "150.0.7871.46",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/b1b63rhpwm2a93mlmz3xrz2yhdvsj9z6-chromium-150.0.7871.46",
+        "sandbox": "/nix/store/4r9m3wxd0jgmlw74dv6rcgqnahcdlbxv-chromium-150.0.7871.46-sandbox"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "chromium",
+      "broken": false,
+      "derivation": "/nix/store/jd1xdwnvf455c3bjpd00slgjlfnzrz7z-chromium-150.0.7871.46.drv",
+      "description": "Open source web browser from Google",
+      "install_id": "chromium",
+      "license": "BSD-3-Clause",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=d407951447dcd00442e97087bf374aad70c04cea",
+      "name": "chromium-150.0.7871.46",
+      "pname": "chromium",
+      "rev": "d407951447dcd00442e97087bf374aad70c04cea",
+      "rev_count": 1027867,
+      "rev_date": "2026-07-05T04:06:12Z",
+      "scrape_date": "2026-07-06T04:40:24.398283Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "150.0.7871.46",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/4fa0i91br311imiyli0v1j1i3nnss3ly-chromium-150.0.7871.46",
+        "sandbox": "/nix/store/bd16sp7xgvibdahnpq1c8ark31if9gss-chromium-150.0.7871.46-sandbox"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "geist-font",
+      "broken": false,
+      "derivation": "/nix/store/f9y2c7f4p1h36165b8i66i2n7587s19c-geist-font-1.5.0.drv",
+      "description": "Font family created by Vercel in collaboration with Basement Studio",
+      "install_id": "geist-font",
+      "license": "OFL-1.1",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=d407951447dcd00442e97087bf374aad70c04cea",
+      "name": "geist-font-1.5.0",
+      "pname": "geist-font",
+      "rev": "d407951447dcd00442e97087bf374aad70c04cea",
+      "rev_count": 1027867,
+      "rev_date": "2026-07-05T04:06:12Z",
+      "scrape_date": "2026-07-06T03:12:56.029412Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "1.5.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/m9g7sk86vshaf0f799niqjva35l13y2k-geist-font-1.5.0",
+        "webfont": "/nix/store/r8840aqv484gjzp7g9vyrfgq1yihp42x-geist-font-1.5.0-webfont"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "geist-font",
+      "broken": false,
+      "derivation": "/nix/store/lx32z8c8nm83qn87n026mmwvfj2vjznj-geist-font-1.5.0.drv",
+      "description": "Font family created by Vercel in collaboration with Basement Studio",
+      "install_id": "geist-font",
+      "license": "OFL-1.1",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=d407951447dcd00442e97087bf374aad70c04cea",
+      "name": "geist-font-1.5.0",
+      "pname": "geist-font",
+      "rev": "d407951447dcd00442e97087bf374aad70c04cea",
+      "rev_count": 1027867,
+      "rev_date": "2026-07-05T04:06:12Z",
+      "scrape_date": "2026-07-06T03:41:23.062771Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "1.5.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/sgs31yk2k922imz34gji5vsalh3dxfih-geist-font-1.5.0",
+        "webfont": "/nix/store/9jfrmkkfnjw5lwww47wxf9rnddn8xams-geist-font-1.5.0-webfont"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "geist-font",
+      "broken": false,
+      "derivation": "/nix/store/nd92i55dg69gb1smrflcwwkb9278jbn0-geist-font-1.5.0.drv",
+      "description": "Font family created by Vercel in collaboration with Basement Studio",
+      "install_id": "geist-font",
+      "license": "OFL-1.1",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=d407951447dcd00442e97087bf374aad70c04cea",
+      "name": "geist-font-1.5.0",
+      "pname": "geist-font",
+      "rev": "d407951447dcd00442e97087bf374aad70c04cea",
+      "rev_count": 1027867,
+      "rev_date": "2026-07-05T04:06:12Z",
+      "scrape_date": "2026-07-06T04:09:01.536730Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "1.5.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/al2chb6mx9dqzpsfmhvfyvk5i7byky37-geist-font-1.5.0",
+        "webfont": "/nix/store/yy8qhn7fm2l3jhrk8qmkf6c54dq407ph-geist-font-1.5.0-webfont"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "geist-font",
+      "broken": false,
+      "derivation": "/nix/store/jllkafawwbr159019vjirwxb8wbdvwmr-geist-font-1.5.0.drv",
+      "description": "Font family created by Vercel in collaboration with Basement Studio",
+      "install_id": "geist-font",
+      "license": "OFL-1.1",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=d407951447dcd00442e97087bf374aad70c04cea",
+      "name": "geist-font-1.5.0",
+      "pname": "geist-font",
+      "rev": "d407951447dcd00442e97087bf374aad70c04cea",
+      "rev_count": 1027867,
+      "rev_date": "2026-07-05T04:06:12Z",
+      "scrape_date": "2026-07-06T04:40:25.834137Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "1.5.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/nfqqpz4kd1qqmws3zlz7175hda1bczik-geist-font-1.5.0",
+        "webfont": "/nix/store/wd6nilj5ysbwxkyffayp9bf64y0ddppa-geist-font-1.5.0-webfont"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "marp-cli",
+      "broken": false,
+      "derivation": "/nix/store/qprc55ss0g4pv3jih73jqrqzdy0xg9sk-marp-cli-4.4.0.drv",
+      "description": "About A CLI interface for Marp and Marpit based converters",
+      "install_id": "marp-cli",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=d407951447dcd00442e97087bf374aad70c04cea",
+      "name": "marp-cli-4.4.0",
+      "pname": "marp-cli",
+      "rev": "d407951447dcd00442e97087bf374aad70c04cea",
+      "rev_count": 1027867,
+      "rev_date": "2026-07-05T04:06:12Z",
+      "scrape_date": "2026-07-06T03:13:17.972366Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "4.4.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/z5lv81808wihkkf2xv045ddhy4gm1h2g-marp-cli-4.4.0"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "marp-cli",
+      "broken": false,
+      "derivation": "/nix/store/cwssswhlm2pm416ki2rhidxzlzbrxgsw-marp-cli-4.4.0.drv",
+      "description": "About A CLI interface for Marp and Marpit based converters",
+      "install_id": "marp-cli",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=d407951447dcd00442e97087bf374aad70c04cea",
+      "name": "marp-cli-4.4.0",
+      "pname": "marp-cli",
+      "rev": "d407951447dcd00442e97087bf374aad70c04cea",
+      "rev_count": 1027867,
+      "rev_date": "2026-07-05T04:06:12Z",
+      "scrape_date": "2026-07-06T03:41:56.411741Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "4.4.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/8wl6frmvlx2piw9sra13qi0za3bdh1hh-marp-cli-4.4.0"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "marp-cli",
+      "broken": false,
+      "derivation": "/nix/store/k310ydh8x79ac8srmzfkn4vbw777zh17-marp-cli-4.4.0.drv",
+      "description": "About A CLI interface for Marp and Marpit based converters",
+      "install_id": "marp-cli",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=d407951447dcd00442e97087bf374aad70c04cea",
+      "name": "marp-cli-4.4.0",
+      "pname": "marp-cli",
+      "rev": "d407951447dcd00442e97087bf374aad70c04cea",
+      "rev_count": 1027867,
+      "rev_date": "2026-07-05T04:06:12Z",
+      "scrape_date": "2026-07-06T04:09:29.011225Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "4.4.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/bx330lyykz24z1qxmp3dxc2ilfgw366y-marp-cli-4.4.0"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "marp-cli",
+      "broken": false,
+      "derivation": "/nix/store/pmcrwzvq3mkgfhildbbi0rjgcqrd5vcw-marp-cli-4.4.0.drv",
+      "description": "About A CLI interface for Marp and Marpit based converters",
+      "install_id": "marp-cli",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=d407951447dcd00442e97087bf374aad70c04cea",
+      "name": "marp-cli-4.4.0",
+      "pname": "marp-cli",
+      "rev": "d407951447dcd00442e97087bf374aad70c04cea",
+      "rev_count": 1027867,
+      "rev_date": "2026-07-05T04:06:12Z",
+      "scrape_date": "2026-07-06T04:41:01.336971Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "4.4.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/0bb3x8aan7nz7a8j3l8x0hi8sanq29yd-marp-cli-4.4.0"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    }
+  ]
+}
