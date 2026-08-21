@@ -3,8 +3,8 @@
 #   flox activate -- make
 #   flox activate -- make serve
 #
-# marp-cli and chromium are pinned in .flox/env/manifest.toml, and the
-# activation hook points CHROME_PATH at the browser.
+# marp-cli, gnumake, and chromium are pinned in .flox/env/manifest.toml,
+# and the activation hook points CHROME_PATH at the browser.
 #
 # `make` without that environment is supposed to fail. That's the opening
 # of the talk: the toolchain is a file in the repo, not a thing you apt-get.
