@@ -50,7 +50,7 @@ OPENING — this slide stays up as a PDF while people settle.
 ```console
 $ git clone https://github.com/imkarrer/flox-buildkite-plugin
 $ cd flox-buildkite-plugin/docs/talks
-$ make                            # this will fail. that's the point
+$ make serve                           # this will fail. that's the point
 $ flox activate -- make serve     # now it works
 ```
 
@@ -69,7 +69,7 @@ empty, `echo $FLOX_ENV` is empty. `make` hits check-marp first, so
 leftover build/ artifacts cannot hide the miss.
 
 The beat, in order:
-  1. `make` — let it fail. Read the error out loud.
+  1. `make serve` — let it fail. Read the error out loud.
      "marp is not on PATH. The toolchain lives in .flox/ — a file in
      this repo."
   2. `flox activate -- make serve`
