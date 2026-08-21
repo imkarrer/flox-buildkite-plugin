@@ -24,7 +24,8 @@ gnumake.pkg-path = "gnumake"
 # `flox build project` activates this env, runs Make, and copies `build/` to
 # $out (Make writes in-tree; Flox only keeps $out). sandbox = "warn" logs
 # files read outside the closure — host tools Ubuntu has and NixOS may not —
-# without failing the build.
+# without failing the build. sandbox-allow mutes Flox's own wrapped-sh/bash
+# harness; do not widen it to /nix/store/** (that would hide real leaks).
 [build.project]
 command = '''
   make
@@ -32,6 +33,11 @@ command = '''
   cp -r build "$out/"
 '''
 sandbox = "warn"
+sandbox-allow = [
+  "/nix/store/*-wrapped-sh/**",
+  "/nix/store/*-bash-*/**",
+  "/nix/store/*-sh/bin/sh",
+]
 
 [hook]
 on-activate = '''
