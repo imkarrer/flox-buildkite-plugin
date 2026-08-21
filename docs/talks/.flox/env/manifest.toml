@@ -23,18 +23,44 @@ gnumake.pkg-path = "gnumake"
 
 [hook]
 on-activate = '''
-  # Marp locates a browser via CHROME_PATH. Prefer the pinned one; fall back to
-  # a system Chrome so macOS without a catalog chromium can still export.
-  if [ -z "${CHROME_PATH:-}" ]; then
+  # Marp locates a browser via CHROME_PATH. Prefer the pinned Chromium this
+  # env ships on Linux; fall back to a system Chrome so macOS can still export.
+  #
+  # Always resolve to the physical path. Marp CLI treats any executable under
+  # /mnt/<drive>/ as Windows Chrome and rewrites file:// URLs to
+  # \\wsl.localhost\… — which then 404s (net::ERR_FILE_NOT_FOUND). A WSL
+  # checkout on /mnt/c (Downloads, etc.) puts $FLOX_ENV/bin/chromium on that
+  # prefix even though the binary is Linux, so the unresolved wrapper fools
+  # the heuristic. The nix store path does not.
+  #
+  # Prefer the pinned binary even if CHROME_PATH is already set: WSL shells
+  # often inherit a Windows Chrome path, which hits the same rewrite.
+  _chrome=""
+  if [ -x "$FLOX_ENV/bin/chromium" ]; then
+    _chrome="$FLOX_ENV/bin/chromium"
+  elif [ -z "${CHROME_PATH:-}" ]; then
     for _candidate in \
-      "$FLOX_ENV/bin/chromium" \
       "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
       "/Applications/Chromium.app/Contents/MacOS/Chromium"; do
       if [ -x "$_candidate" ]; then
-        export CHROME_PATH="$_candidate"
+        _chrome="$_candidate"
         break
       fi
     done
     unset _candidate
   fi
+  if [ -n "$_chrome" ]; then
+    # Prefer realpath/readlink -f so a symlink inside a real .flox/run/bin
+    # still lands in /nix/store. Fall back to pwd -P on the directory
+    # (macOS readlink had no -f before 12.3).
+    if _resolved="$(realpath "$_chrome" 2>/dev/null)" && [ -x "$_resolved" ]; then
+      export CHROME_PATH="$_resolved"
+    elif _resolved="$(readlink -f "$_chrome" 2>/dev/null)" && [ -x "$_resolved" ]; then
+      export CHROME_PATH="$_resolved"
+    else
+      export CHROME_PATH="$(cd "$(dirname "$_chrome")" && pwd -P)/$(basename "$_chrome")"
+    fi
+    unset _resolved
+  fi
+  unset _chrome
 '''

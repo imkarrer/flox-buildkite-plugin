@@ -4,7 +4,8 @@
 #   flox activate -- make serve
 #
 # marp-cli, gnumake, and chromium are pinned in .flox/env/manifest.toml,
-# and the activation hook points CHROME_PATH at the browser.
+# and the activation hook points CHROME_PATH at the real browser path (not
+# a /mnt/c wrapper — Marp CLI would otherwise treat it as Windows Chrome).
 #
 # `make` without that environment is supposed to fail. That's the opening
 # of the talk: the toolchain is a file in the repo, not a thing you apt-get.
@@ -12,6 +13,19 @@
 MARP  := marp
 DECK  := slides.md
 BUILD := build
+
+# Marp CLI treats a browser under /mnt/<drive>/ as Windows Chrome and rewrites
+# file:// URLs to \\wsl.localhost\…, which 404s. A WSL checkout on /mnt/c puts
+# the Flox chromium wrapper on that prefix. Resolve to the store path when we
+# can; no-op on macOS, where readlink -f is absent and the heuristic does not
+# apply. The activation hook does the same; this covers `make` in a shell that
+# was activated before the hook changed.
+ifneq ($(CHROME_PATH),)
+  _chrome_real := $(shell readlink -f "$(CHROME_PATH)" 2>/dev/null)
+  ifneq ($(_chrome_real),)
+    export CHROME_PATH := $(_chrome_real)
+  endif
+endif
 
 .PHONY: all html pdf pptx png watch serve clean check check-marp
 
