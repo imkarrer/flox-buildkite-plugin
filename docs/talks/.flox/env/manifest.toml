@@ -19,25 +19,34 @@ chromium.systems = ["aarch64-linux", "x86_64-linux"]
 # The Makefile is the build. NixOS and other minimal systems don't ship
 # `make`; pinning it here means `flox activate -- make serve` is the whole
 # toolchain, not "Flox plus whatever your distro happened to include".
+# (`flox build` with sandbox = "pure" still has Make — Nix stdenv ships it —
+# so this pin is for activate, not for the Nix builder.)
 gnumake.pkg-path = "gnumake"
 
-# `flox build project` activates this env, runs Make, and copies `build/` to
-# $out (Make writes in-tree; Flox only keeps $out). sandbox = "warn" logs
-# files read outside the closure — host tools Ubuntu has and NixOS may not —
-# without failing the build. sandbox-allow mutes Flox's own wrapped-sh/bash
-# harness; do not widen it to /nix/store/** (that would hide real leaks).
+# Marp finds a browser via CHROME_PATH, not PATH. Chrome's own sandbox cannot
+# nest inside the Nix builder, and there is no GPU.
+[vars]
+CHROME_NO_SANDBOX = "1"
+CHROME_DISABLE_GPU = "1"
+
+# `flox build project` activates this env with --skip-hook-on-activate, so
+# CHROME_PATH must be set here (the on-activate hook never runs). Make writes
+# in-tree; Flox only keeps $out. sandbox-allow is ignored under "pure".
 [build.project]
 command = '''
+  if [ -z "${CHROME_PATH:-}" ] && [ -x "${FLOX_ENV}/bin/chromium" ]; then
+    export CHROME_PATH="${FLOX_ENV}/bin/chromium"
+  fi
+  # Marp writes conversion HTML under $HOME on Linux; Nix's /homeless-shelter
+  # is not writable.
+  if [ ! -w "${HOME:-}" ]; then
+    export HOME="${TMPDIR:-/tmp}"
+  fi
   make
-  mkdir -p $out
+  mkdir -p "$out"
   cp -r build "$out/"
 '''
-sandbox = "warn"
-sandbox-allow = [
-  "/nix/store/*-wrapped-sh/**",
-  "/nix/store/*-bash-*/**",
-  "/nix/store/*-sh/bin/sh",
-]
+sandbox = "pure"
 
 [hook]
 on-activate = '''

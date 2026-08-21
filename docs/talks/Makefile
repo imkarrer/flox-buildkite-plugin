@@ -14,12 +14,18 @@ MARP  := marp
 DECK  := slides.md
 BUILD := build
 
-# Marp CLI treats a browser under /mnt/<drive>/ as Windows Chrome and rewrites
-# file:// URLs to \\wsl.localhost\…, which 404s. A WSL checkout on /mnt/c puts
-# the Flox chromium wrapper on that prefix. Resolve to the store path when we
-# can; no-op on macOS, where readlink -f is absent and the heuristic does not
-# apply. The activation hook does the same; this covers `make` in a shell that
-# was activated before the hook changed.
+# Marp does not search PATH for `chromium`. It honours CHROME_PATH, or a
+# handful of distro locations that a Nix sandbox does not have. The activation
+# hook sets this, but `flox build` skips hooks (`--skip-hook-on-activate`).
+ifeq ($(CHROME_PATH),)
+  _chromium := $(shell command -v chromium 2>/dev/null)
+  ifneq ($(_chromium),)
+    export CHROME_PATH := $(_chromium)
+  endif
+endif
+# Then resolve off /mnt/<drive>/ so Marp does not treat a Flox wrapper on a
+# WSL checkout as Windows Chrome (file:// URLs become \\wsl.localhost\… and
+# 404). No-op on macOS, where readlink -f is absent and the heuristic is not.
 ifneq ($(CHROME_PATH),)
   _chrome_real := $(shell readlink -f "$(CHROME_PATH)" 2>/dev/null)
   ifneq ($(_chrome_real),)

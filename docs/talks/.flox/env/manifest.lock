@@ -20,10 +20,20 @@
         "pkg-path": "marp-cli"
       }
     },
-    "hook": {
-      "on-activate": "  # Marp locates a browser via CHROME_PATH. Prefer the pinned one; fall back to\n  # a system Chrome so macOS without a catalog chromium can still export.\n  if [ -z \"${CHROME_PATH:-}\" ]; then\n    for _candidate in \\\n      \"$FLOX_ENV/bin/chromium\" \\\n      \"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome\" \\\n      \"/Applications/Chromium.app/Contents/MacOS/Chromium\"; do\n      if [ -x \"$_candidate\" ]; then\n        export CHROME_PATH=\"$_candidate\"\n        break\n      fi\n    done\n    unset _candidate\n  fi\n"
+    "vars": {
+      "CHROME_DISABLE_GPU": "1",
+      "CHROME_NO_SANDBOX": "1"
     },
-    "options": {}
+    "hook": {
+      "on-activate": "  # Marp locates a browser via CHROME_PATH. Prefer the pinned Chromium this\n  # env ships on Linux; fall back to a system Chrome so macOS can still export.\n  #\n  # Always resolve to the physical path. Marp CLI treats any executable under\n  # /mnt/<drive>/ as Windows Chrome and rewrites file:// URLs to\n  # \\\\wsl.localhost\\… — which then 404s (net::ERR_FILE_NOT_FOUND). A WSL\n  # checkout on /mnt/c (Downloads, etc.) puts $FLOX_ENV/bin/chromium on that\n  # prefix even though the binary is Linux, so the unresolved wrapper fools\n  # the heuristic. The nix store path does not.\n  #\n  # Prefer the pinned binary even if CHROME_PATH is already set: WSL shells\n  # often inherit a Windows Chrome path, which hits the same rewrite.\n  _chrome=\"\"\n  if [ -x \"$FLOX_ENV/bin/chromium\" ]; then\n    _chrome=\"$FLOX_ENV/bin/chromium\"\n  elif [ -z \"${CHROME_PATH:-}\" ]; then\n    for _candidate in \\\n      \"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome\" \\\n      \"/Applications/Chromium.app/Contents/MacOS/Chromium\"; do\n      if [ -x \"$_candidate\" ]; then\n        _chrome=\"$_candidate\"\n        break\n      fi\n    done\n    unset _candidate\n  fi\n  if [ -n \"$_chrome\" ]; then\n    # Prefer realpath/readlink -f so a symlink inside a real .flox/run/bin\n    # still lands in /nix/store. Fall back to pwd -P on the directory\n    # (macOS readlink had no -f before 12.3).\n    if _resolved=\"$(realpath \"$_chrome\" 2>/dev/null)\" && [ -x \"$_resolved\" ]; then\n      export CHROME_PATH=\"$_resolved\"\n    elif _resolved=\"$(readlink -f \"$_chrome\" 2>/dev/null)\" && [ -x \"$_resolved\" ]; then\n      export CHROME_PATH=\"$_resolved\"\n    else\n      export CHROME_PATH=\"$(cd \"$(dirname \"$_chrome\")\" && pwd -P)/$(basename \"$_chrome\")\"\n    fi\n    unset _resolved\n  fi\n  unset _chrome\n"
+    },
+    "options": {},
+    "build": {
+      "project": {
+        "command": "  if [ -z \"${CHROME_PATH:-}\" ] && [ -x \"${FLOX_ENV}/bin/chromium\" ]; then\n    export CHROME_PATH=\"${FLOX_ENV}/bin/chromium\"\n  fi\n  # Marp writes conversion HTML under $HOME on Linux; Nix's /homeless-shelter\n  # is not writable.\n  if [ ! -w \"${HOME:-}\" ]; then\n    export HOME=\"${TMPDIR:-/tmp}\"\n  fi\n  make\n  mkdir -p \"$out\"\n  cp -r build \"$out/\"\n",
+        "sandbox": "pure"
+      }
+    }
   },
   "packages": [
     {
