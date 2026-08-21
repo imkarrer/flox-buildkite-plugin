@@ -21,6 +21,18 @@ chromium.systems = ["aarch64-linux", "x86_64-linux"]
 # toolchain, not "Flox plus whatever your distro happened to include".
 gnumake.pkg-path = "gnumake"
 
+# `flox build project` activates this env, runs Make, and copies `build/` to
+# $out (Make writes in-tree; Flox only keeps $out). sandbox = "warn" logs
+# files read outside the closure — host tools Ubuntu has and NixOS may not —
+# without failing the build.
+[build.project]
+command = '''
+  make
+  mkdir -p $out
+  cp -r build "$out/"
+'''
+sandbox = "warn"
+
 [hook]
 on-activate = '''
   # Marp locates a browser via CHROME_PATH. Prefer the pinned Chromium this
