@@ -17,20 +17,10 @@ BUILD := build
 # Marp does not search PATH for `chromium`. It honours CHROME_PATH, or a
 # handful of distro locations that a Nix sandbox does not have. The activation
 # hook sets this, but `flox build` skips hooks (`--skip-hook-on-activate`).
-ifeq ($(CHROME_PATH),)
-  _chromium := $(shell command -v chromium 2>/dev/null)
-  ifneq ($(_chromium),)
-    export CHROME_PATH := $(_chromium)
-  endif
-endif
-# Then resolve off /mnt/<drive>/ so Marp does not treat a Flox wrapper on a
-# WSL checkout as Windows Chrome (file:// URLs become \\wsl.localhost\… and
-# 404). No-op on macOS, where readlink -f is absent and the heuristic is not.
-ifneq ($(CHROME_PATH),)
-  _chrome_real := $(shell readlink -f "$(CHROME_PATH)" 2>/dev/null)
-  ifneq ($(_chrome_real),)
-    export CHROME_PATH := $(_chrome_real)
-  endif
+# HTML export does not need a browser, so a miss here is not fatal.
+_resolved_chrome := $(shell ./resolve-chrome.sh 2>/dev/null)
+ifneq ($(_resolved_chrome),)
+  export CHROME_PATH := $(_resolved_chrome)
 endif
 
 .PHONY: all html pdf pptx png watch serve clean check check-marp

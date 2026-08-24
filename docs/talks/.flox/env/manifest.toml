@@ -11,10 +11,12 @@ marp-cli.pkg-path = "marp-cli"
 geist-font.pkg-path = "geist-font"
 
 # Marp shells out to a browser for PDF, PPTX, and PNG export; HTML needs none.
-# The catalog ships chromium on Linux only (see `flox show chromium`), so it's
-# scoped there and the hook falls back to a system Chrome on macOS.
+# Catalog chromium is Linux-only. Darwin gets catalog google-chrome (unfree)
+# so PDF export does not depend on a host Chrome.app.
 chromium.pkg-path = "chromium"
 chromium.systems = ["aarch64-linux", "x86_64-linux"]
+google-chrome.pkg-path = "google-chrome"
+google-chrome.systems = ["aarch64-darwin", "x86_64-darwin"]
 
 # The Makefile is the build. NixOS and other minimal systems don't ship
 # `make`; pinning it here means `flox activate -- make serve` is the whole
@@ -22,6 +24,10 @@ chromium.systems = ["aarch64-linux", "x86_64-linux"]
 # (`flox build` with sandbox = "pure" still has Make — Nix stdenv ships it —
 # so this pin is for activate, not for the Nix builder.)
 gnumake.pkg-path = "gnumake"
+
+# google-chrome is Unfree; without this the Darwin pin is refused.
+[options]
+allow.unfree = true
 
 # Marp finds a browser via CHROME_PATH, not PATH. Chrome's own sandbox cannot
 # nest inside the Nix builder, and there is no GPU.
@@ -31,12 +37,14 @@ CHROME_DISABLE_GPU = "1"
 
 # `flox build project` activates this env with --skip-hook-on-activate, so
 # CHROME_PATH must be set here (the on-activate hook never runs). Make writes
-# in-tree; Flox only keeps $out. sandbox-allow is ignored under "pure".
+# in-tree; Flox only keeps $out.
+#
+# sandbox = "pure" is a Nix sandbox. Darwin's catalog Chrome is a real
+# Chrome.app and still cannot launch there (path_service 1001). "warn" uses
+# the pinned browser from this env on every system.
 [build.project]
 command = '''
-  if [ -z "${CHROME_PATH:-}" ] && [ -x "${FLOX_ENV}/bin/chromium" ]; then
-    export CHROME_PATH="${FLOX_ENV}/bin/chromium"
-  fi
+  export CHROME_PATH="$(./resolve-chrome.sh)"
   # Marp writes conversion HTML under $HOME on Linux; Nix's /homeless-shelter
   # is not writable.
   if [ ! -w "${HOME:-}" ]; then
@@ -46,48 +54,12 @@ command = '''
   mkdir -p "$out"
   cp -r build "$out/"
 '''
-sandbox = "pure"
+sandbox = "warn"
 
 [hook]
 on-activate = '''
-  # Marp locates a browser via CHROME_PATH. Prefer the pinned Chromium this
-  # env ships on Linux; fall back to a system Chrome so macOS can still export.
-  #
-  # Always resolve to the physical path. Marp CLI treats any executable under
-  # /mnt/<drive>/ as Windows Chrome and rewrites file:// URLs to
-  # \\wsl.localhost\… — which then 404s (net::ERR_FILE_NOT_FOUND). A WSL
-  # checkout on /mnt/c (Downloads, etc.) puts $FLOX_ENV/bin/chromium on that
-  # prefix even though the binary is Linux, so the unresolved wrapper fools
-  # the heuristic. The nix store path does not.
-  #
-  # Prefer the pinned binary even if CHROME_PATH is already set: WSL shells
-  # often inherit a Windows Chrome path, which hits the same rewrite.
-  _chrome=""
-  if [ -x "$FLOX_ENV/bin/chromium" ]; then
-    _chrome="$FLOX_ENV/bin/chromium"
-  elif [ -z "${CHROME_PATH:-}" ]; then
-    for _candidate in \
-      "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
-      "/Applications/Chromium.app/Contents/MacOS/Chromium"; do
-      if [ -x "$_candidate" ]; then
-        _chrome="$_candidate"
-        break
-      fi
-    done
-    unset _candidate
-  fi
-  if [ -n "$_chrome" ]; then
-    # Prefer realpath/readlink -f so a symlink inside a real .flox/run/bin
-    # still lands in /nix/store. Fall back to pwd -P on the directory
-    # (macOS readlink had no -f before 12.3).
-    if _resolved="$(realpath "$_chrome" 2>/dev/null)" && [ -x "$_resolved" ]; then
-      export CHROME_PATH="$_resolved"
-    elif _resolved="$(readlink -f "$_chrome" 2>/dev/null)" && [ -x "$_resolved" ]; then
-      export CHROME_PATH="$_resolved"
-    else
-      export CHROME_PATH="$(cd "$(dirname "$_chrome")" && pwd -P)/$(basename "$_chrome")"
-    fi
-    unset _resolved
+  if _chrome="$("$FLOX_ENV_PROJECT/resolve-chrome.sh")"; then
+    export CHROME_PATH="$_chrome"
   fi
   unset _chrome
 '''
