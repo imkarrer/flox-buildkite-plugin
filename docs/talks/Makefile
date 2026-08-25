@@ -25,7 +25,7 @@ endif
 
 .PHONY: all html pdf pptx png watch serve clean check check-marp
 
-all: check-marp html pdf
+all: check-marp html pdf pptx
 
 html: check-marp $(BUILD)/slides.html
 pdf: check-marp $(BUILD)/slides.pdf

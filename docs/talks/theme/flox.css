@@ -190,7 +190,9 @@ pre {
   font-size: 21px;
   line-height: 1.45;
   overflow: visible;
-  box-shadow: 0 10px 30px -18px rgba(27, 27, 27, 0.55);
+  /* No box-shadow: Chrome's PDF compositor (and macOS Preview) turns it
+   * into a rectangular grey smear around the rounded block. HTML would
+   * look fine; PDF/PPTX would not. Dark slides already use a 1px border. */
 }
 
 pre code {
@@ -335,7 +337,6 @@ section.dark code {
 
 section.dark pre {
   background: #101010;
-  box-shadow: none;
   border: 1px solid rgba(255, 255, 255, 0.13);
 }
 
@@ -548,7 +549,6 @@ section.dark .match {
  */
 .rhyme pre {
   margin: 0;
-  box-shadow: none;
 }
 
 .rhyme .grind pre {
@@ -718,4 +718,32 @@ section.tight table {
  */
 section.tight > pre {
   font-size: 19px;
+}
+
+/*
+ * Marpit's printable CSS sets `print-color-adjust: exact` on `section *`.
+ * Chrome then paints a grey rectangle for every element's compositing
+ * layer — headings, images, code blocks — in PDF and in PPTX/PNG (Marp
+ * emulates print media for those). HTML preview uses screen media, so
+ * it never shows the boxes. Keep exact-color on the slide itself so
+ * backgrounds still print; unset it on descendants.
+ */
+@media print {
+  section * {
+    -webkit-print-color-adjust: unset !important;
+    print-color-adjust: unset !important;
+    color-adjust: unset !important;
+  }
+
+  section,
+  section pre,
+  section code,
+  section th,
+  section td,
+  section .grind,
+  section .shortcut {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
 }
