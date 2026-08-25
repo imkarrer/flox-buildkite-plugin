@@ -68,8 +68,18 @@ $(BUILD)/png: $(DEPS)
 	$(MARP) $(DECK) --images png -o $(BUILD)/png/slide.png
 
 # Live preview at http://localhost:8080 with reload on save.
+#
+# Do not pass `.` to --watch. After `flox activate`, `.flox/run` is a symlink
+# into the Nix store; Marp's chokidar follows it and dies with EMFILE on macOS.
+SERVE_ROOT := .serve
+
 serve: check-marp
-	$(MARP) --server --watch .
+	@mkdir -p $(SERVE_ROOT)
+	@for p in slides.md chippewa-valley-devs.md theme assets demo; do \
+	  [ -e "$$p" ] || continue; \
+	  ln -sfn "../$$p" "$(SERVE_ROOT)/$$p"; \
+	done
+	$(MARP) --server --watch $(SERVE_ROOT)
 
 watch: check-marp
 	$(MARP) $(DECK) --watch -o $(BUILD)/slides.html
@@ -81,4 +91,4 @@ check:
 	@./check-overflow.sh $(DECK)
 
 clean:
-	rm -rf $(BUILD)
+	rm -rf $(BUILD) $(SERVE_ROOT)

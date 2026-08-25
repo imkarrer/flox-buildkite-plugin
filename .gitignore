@@ -5,6 +5,7 @@
 
 # Rendered talk decks; rebuild with `make -C docs/talks`.
 docs/talks/build/
+docs/talks/.serve/
 
 # `flox build project` installables and logs.
 docs/talks/result-*
