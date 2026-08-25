@@ -624,7 +624,7 @@ flake.lock pins only the nixpkgs input and re-derives the rest.
 
 ```toml
 [vars]
-API_PORT = "8080"
+API_PORT = "8081"
 
 [hook]
 on-activate = '''

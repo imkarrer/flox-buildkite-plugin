@@ -97,6 +97,10 @@ grep -v '^\s*#' .flox/env/manifest.toml | grep -v '^$'
 Switch back to **Same engine**. Let it sit. Then second terminal block:
 
 ```console
+# Init template already has empty [vars]/[hook]/[services]. Drop those
+# headers so the append does not duplicate the tables.
+# services.toml uses API_PORT=8081 so it does not collide with make serve.
+sed -i.bak -E '/^\[(vars|hook|services)\]$/d' .flox/env/manifest.toml
 cat "$TALK/demo/services.toml" >> .flox/env/manifest.toml
 flox activate --start-services -- bash -c 'sleep 3; curl -s localhost:$API_PORT; flox services status'
 ```

@@ -451,7 +451,7 @@ Show the manifest, then run it.
 
 ```toml
 [vars]
-API_PORT = "8080"
+API_PORT = "8081"
 
 [hook]
 on-activate = '''
@@ -464,7 +464,7 @@ api.command = "node -e '…http server on process.env.API_PORT…'"
 
 ```console
 $ flox activate --start-services -- bash -c 'sleep 3; curl -s localhost:$API_PORT; flox services status'
-env ready: node v22.23.1, API_PORT=8080
+env ready: node v22.23.1, API_PORT=8081
 hi
 NAME       STATUS       PID
 api        Running     2764
