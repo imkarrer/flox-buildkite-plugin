@@ -39,23 +39,23 @@ configuration:
     s3-cache-bucket:
       type: string
       default: ""
-      description: S3-compatible Nix binary cache bucket (e.g. flox-binary-cache). Empty disables the cache.
+      description: S3-compatible Nix binary cache bucket (e.g. flox-binary-cache). Falls back to S3_CACHE_BUCKET. Empty disables the cache.
     s3-cache-endpoint:
       type: string
       default: ""
-      description: "Full S3 endpoint URL (R2: https://<ACCOUNT_ID>.r2.cloudflarestorage.com · AWS: https://s3.<region>.amazonaws.com · MinIO: https://minio.example.com:9000)"
+      description: "Full S3 endpoint URL (R2: https://<ACCOUNT_ID>.r2.cloudflarestorage.com · AWS: https://s3.<region>.amazonaws.com · MinIO: https://minio.example.com:9000). Falls back to S3_CACHE_ENDPOINT."
     s3-cache-region:
       type: string
       default: auto
-      description: S3 region for the cache (auto for R2)
+      description: S3 region for the cache (auto for R2). Falls back to S3_CACHE_REGION.
     s3-cache-public-key:
       type: string
       default: ""
-      description: Trusted Nix cache public key (cache-name-1:base64=)
+      description: Trusted Nix cache public key (cache-name-1:base64=). Falls back to S3_CACHE_PUBLIC_KEY.
     s3-cache-push:
       type: boolean
       default: false
-      description: Write back (push) the activated environment's closure to the S3 cache after the step. Needs S3_CACHE_SIGNING_KEY.
+      description: Write back (push) the activated environment's closure to the S3 cache after the step. Falls back to S3_CACHE_PUSH. Needs S3_CACHE_SIGNING_KEY.
     disable-metrics:
       type: boolean
       default: true

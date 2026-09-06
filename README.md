@@ -207,11 +207,11 @@ steps:
 | `floxhub-token` | string | — | FloxHub token for remote environment auth (falls back to `FLOX_TOKEN` env var) |
 | `activation-mode` | string | _(empty = manifest default)_ | Activate in `dev` or `run` mode (equivalent to `flox activate -m`, overrides `options.activate.mode` in the manifest) |
 | `trust` | boolean | `false` | Trust remote environment hook (equivalent to `flox activate --trust`) |
-| `s3-cache-bucket` | string | — | S3-compatible Nix binary cache bucket (e.g. `flox-binary-cache`). Empty disables the cache |
-| `s3-cache-endpoint` | string | — | Full S3 endpoint URL (R2: `https://<ACCOUNT_ID>.r2.cloudflarestorage.com` · AWS: `https://s3.<region>.amazonaws.com` · MinIO: `https://minio.example.com:9000`) |
-| `s3-cache-region` | string | `auto` | S3 region for the cache (`auto` for R2) |
-| `s3-cache-public-key` | string | — | Trusted Nix cache public key (`cache-name-1:base64=`) |
-| `s3-cache-push` | boolean | `false` | Write back (push) the activated environment's closure to the cache after the step (needs `S3_CACHE_SIGNING_KEY`) |
+| `s3-cache-bucket` | string | — | S3-compatible Nix binary cache bucket (e.g. `flox-binary-cache`). Falls back to `S3_CACHE_BUCKET`. Empty disables the cache |
+| `s3-cache-endpoint` | string | — | Full S3 endpoint URL (R2: `https://<ACCOUNT_ID>.r2.cloudflarestorage.com` · AWS: `https://s3.<region>.amazonaws.com` · MinIO: `https://minio.example.com:9000`). Falls back to `S3_CACHE_ENDPOINT` |
+| `s3-cache-region` | string | `auto` | S3 region for the cache (`auto` for R2). Falls back to `S3_CACHE_REGION` |
+| `s3-cache-public-key` | string | — | Trusted Nix cache public key (`cache-name-1:base64=`). Falls back to `S3_CACHE_PUBLIC_KEY` |
+| `s3-cache-push` | boolean | `false` | Write back (push) the activated environment's closure to the cache after the step. Falls back to `S3_CACHE_PUSH` (needs `S3_CACHE_SIGNING_KEY`) |
 | `disable-metrics` | boolean | `true` | Disable anonymous usage telemetry |
 
 ### Auth precedence
@@ -221,6 +221,14 @@ steps:
 3. If neither is set and a remote environment is requested, activation fails
 
 Local environments (`.flox/` in the repo via `dir`) need no auth.
+
+### Cache precedence
+
+1. `s3-cache-*` / `s3-cache-push` plugin config on the step
+2. `S3_CACHE_*` / `S3_CACHE_PUSH` environment variables (pipeline `env:`, agent, or cluster)
+3. If neither sets a bucket, the cache is disabled
+
+Secrets (`AWS_*`, `S3_CACHE_SIGNING_KEY`) are environment-only — never plugin keys.
 
 ## Caching
 
@@ -232,22 +240,27 @@ adapted from [jbayer/flox-buildkite](https://github.com/jbayer/flox-buildkite).
 
 ### S3-compatible binary cache (read)
 
-Configuring the plugin with a bucket, endpoint, and trusted public key writes
-an `extra-substituters` + `extra-trusted-public-keys` block into
-`/etc/nix/nix.conf` (the file flox's bundled Nix reads), so a cold `flox
-activate` substitutes already-built paths from the cache:
+Cache identity is pipeline-wide, not per-step. Set it once as `S3_CACHE_*`
+environment variables (pipeline `env:`, agent, or cluster). Plugin keys still
+override a single step when you need a different cache.
 
 ```yml
+env:
+  S3_CACHE_BUCKET: flox-binary-cache
+  S3_CACHE_ENDPOINT: https://<ACCOUNT_ID>.r2.cloudflarestorage.com
+  S3_CACHE_REGION: auto
+  S3_CACHE_PUBLIC_KEY: flox-binary-cache-1:base64=
+
 steps:
   - command: pnpm install && pnpm build
     plugins:
       - imkarrer/flox#v1.0.0:
           command: pnpm install && pnpm build
-          s3-cache-bucket: flox-binary-cache
-          s3-cache-endpoint: https://<ACCOUNT_ID>.r2.cloudflarestorage.com
-          s3-cache-region: auto
-          s3-cache-public-key: flox-binary-cache-1:base64=
 ```
+
+The hook writes an `extra-substituters` + `extra-trusted-public-keys` block
+into `/etc/nix/nix.conf` (the file flox's bundled Nix reads), so a cold
+`flox activate` substitutes already-built paths from the cache.
 
 Works with any S3-compatible object store (AWS S3, CloudFlare R2, MinIO, Ceph
 RGW, Backblaze B2, …). Reads of a **private** bucket need the access key in the
@@ -258,21 +271,24 @@ non-secret, so you can also bake it into the [agent image](#docker) instead.
 
 ### Write-back (opt-in)
 
-Set `s3-cache-push: true` to push the activated environment's closure back to
-the cache after each step — signed, so the *next* cold build trusts it. Needs
-the Nix signing key as `S3_CACHE_SIGNING_KEY` (or `S3_CACHE_SIGNING_KEY_FILE`)
-in the job environment or as a `S3_CACHE_SIGNING_KEY` cluster secret:
+Set `S3_CACHE_PUSH=true` (or `s3-cache-push: true` on one step) to push the
+activated environment's closure back to the cache after each step — signed,
+so the *next* cold build trusts it. Needs the Nix signing key as
+`S3_CACHE_SIGNING_KEY` (or `S3_CACHE_SIGNING_KEY_FILE`) in the job environment
+or as a `S3_CACHE_SIGNING_KEY` cluster secret:
 
 ```yml
+env:
+  S3_CACHE_BUCKET: flox-binary-cache
+  S3_CACHE_ENDPOINT: https://<ACCOUNT_ID>.r2.cloudflarestorage.com
+  S3_CACHE_PUBLIC_KEY: flox-binary-cache-1:base64=
+  S3_CACHE_PUSH: "true"
+
 steps:
   - command: pnpm install && pnpm build
     plugins:
       - imkarrer/flox#v1.0.0:
           command: pnpm install && pnpm build
-          s3-cache-bucket: flox-binary-cache
-          s3-cache-endpoint: https://<ACCOUNT_ID>.r2.cloudflarestorage.com
-          s3-cache-public-key: flox-binary-cache-1:base64=
-          s3-cache-push: true
 ```
 
 > **Guard the signing key.** Anyone holding it can place *trusted* paths in
@@ -382,13 +398,13 @@ This plugin's caching layer is adapted from
 | | [jbayer/flox-buildkite](https://github.com/jbayer/flox-buildkite) | [imkarrer/flox-buildkite-plugin](https://github.com/imkarrer/flox-buildkite-plugin) (this plugin) |
 | --- | --- | --- |
 | **Form** | Copy-paste template — standalone shell scripts + pipeline snippets you paste into each build | Declarative Buildkite plugin — set config keys under `plugins:` and the hooks handle the rest |
-| **S3 binary cache — read** | `s3-cache-configure.sh` appends the substituter + trusted key to `/etc/nix/nix.conf` | `s3-cache-bucket` / `-endpoint` / `-region` / `-public-key` → `hooks/environment:configure_s3_cache()` |
-| **S3 binary cache — write** | `s3-cache-push.sh` signs and pushes the step's closure after the job | `s3-cache-push: true` → `hooks/post-command` |
+| **S3 binary cache — read** | `s3-cache-configure.sh` appends the substituter + trusted key to `/etc/nix/nix.conf` | `S3_CACHE_*` pipeline env (or `s3-cache-*` plugin keys) → `hooks/environment:configure_s3_cache()` |
+| **S3 binary cache — write** | `s3-cache-push.sh` signs and pushes the step's closure after the job | `S3_CACHE_PUSH=true` (or `s3-cache-push: true`) → `hooks/post-command` |
 | **Cold `/nix` volume** | `ensure-nix.sh` restores the store from `/opt/nix-seed` on cold mounts | same logic in `hooks/environment:ensure_nix_seeded()` |
 | **Agent image** | Dockerfile bakes `NIX_REMOTE=auto`, the S3 substituter, `SEED_PACKAGES`, and the `/opt/nix-seed` stash | the same ENV/ARGs in this repo's `Dockerfile` |
 | **Remote (FloxHub) envs** | not covered | `environment` / `floxhub-token` / `trust` config |
 | **flox auto-install** | separate `linux-install-flox.sh` / `macos-install-flox.sh` scripts to copy into the image | `channel` / `version` config → install step in `hooks/environment` |
-| **Per-build wiring** | paste `S3_CACHE_*` env vars and `source …` lines into every pipeline step | one `plugins:` block per step — nothing to copy |
+| **Per-build wiring** | paste `S3_CACHE_*` env vars and `source …` lines into every pipeline step | pipeline `env:` once for cache identity; each step only sets `command` / `dir` |
 
 ### Why these ideas were adopted
 

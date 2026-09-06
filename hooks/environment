@@ -188,12 +188,15 @@ ensure_nix_seeded() {
 # upstream. All inputs are non-secret. Adapted from jbayer/flox-buildkite
 # .buildkite/lib/s3-cache-configure.sh.
 configure_s3_cache() {
-  local bucket="${BUILDKITE_PLUGIN_FLOX_S3_CACHE_BUCKET:-}"
+  # Plugin key wins; otherwise the pipeline/agent S3_CACHE_* env (same
+  # precedence as floxhub-token → FLOX_TOKEN). Cache identity is cluster-wide
+  # — do not make every step repeat it.
+  local bucket="${BUILDKITE_PLUGIN_FLOX_S3_CACHE_BUCKET:-${S3_CACHE_BUCKET:-}}"
   [[ -n "$bucket" ]] || return 0
 
-  local endpoint="${BUILDKITE_PLUGIN_FLOX_S3_CACHE_ENDPOINT:-}"
-  local region="${BUILDKITE_PLUGIN_FLOX_S3_CACHE_REGION:-auto}"
-  local public_key="${BUILDKITE_PLUGIN_FLOX_S3_CACHE_PUBLIC_KEY:-}"
+  local endpoint="${BUILDKITE_PLUGIN_FLOX_S3_CACHE_ENDPOINT:-${S3_CACHE_ENDPOINT:-}}"
+  local region="${BUILDKITE_PLUGIN_FLOX_S3_CACHE_REGION:-${S3_CACHE_REGION:-auto}}"
+  local public_key="${BUILDKITE_PLUGIN_FLOX_S3_CACHE_PUBLIC_KEY:-${S3_CACHE_PUBLIC_KEY:-}}"
   [[ -n "$endpoint" ]] || {
     echo "+++ :flox: s3-cache-bucket is set but s3-cache-endpoint is missing."
     exit 1

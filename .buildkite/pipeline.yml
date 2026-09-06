@@ -7,6 +7,9 @@
 agents:
   queue: self
 
+# Cache identity (S3_CACHE_*) comes from the resident ac-box agent.
+# Steps only set per-step plugin keys: command / dir / environment / trust.
+
 steps:
   - label: ":bash: unit tests"
     command: bash scripts/bk-docker-run.sh tests

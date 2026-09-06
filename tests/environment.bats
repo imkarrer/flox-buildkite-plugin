@@ -55,3 +55,40 @@ teardown() {
 
   unstub flox
 }
+
+@test "environment hook accepts S3_CACHE_* pipeline env as the cache identity" {
+  export S3_CACHE_BUCKET="env-cache"
+  export S3_CACHE_ENDPOINT="http://minio:9000"
+  export S3_CACHE_REGION="us-east-1"
+  export S3_CACHE_PUBLIC_KEY="env-cache-1:abc"
+  stub flox '--version : echo "flox 1.14.0"' '--version : echo "flox 1.14.0"'
+
+  run "$PWD/hooks/environment"
+
+  assert_success
+  assert_output --partial "adding S3 cache substituter"
+  grep -q "extra-substituters = s3://env-cache?endpoint=http://minio:9000&region=us-east-1" "${FLOX_NIX_CONF}"
+  grep -q "extra-trusted-public-keys = env-cache-1:abc" "${FLOX_NIX_CONF}"
+
+  unstub flox
+}
+
+@test "environment hook prefers plugin s3-cache-* keys over S3_CACHE_* env" {
+  export S3_CACHE_BUCKET="env-cache"
+  export S3_CACHE_ENDPOINT="http://minio:9000"
+  export S3_CACHE_REGION="us-east-1"
+  export S3_CACHE_PUBLIC_KEY="env-cache-1:abc"
+  export BUILDKITE_PLUGIN_FLOX_S3_CACHE_BUCKET="plugin-cache"
+  export BUILDKITE_PLUGIN_FLOX_S3_CACHE_ENDPOINT="https://example.com"
+  export BUILDKITE_PLUGIN_FLOX_S3_CACHE_REGION="auto"
+  export BUILDKITE_PLUGIN_FLOX_S3_CACHE_PUBLIC_KEY="plugin-cache-1:xyz"
+  stub flox '--version : echo "flox 1.14.0"' '--version : echo "flox 1.14.0"'
+
+  run "$PWD/hooks/environment"
+
+  assert_success
+  grep -q "extra-substituters = s3://plugin-cache?endpoint=https://example.com&region=auto" "${FLOX_NIX_CONF}"
+  grep -q "extra-trusted-public-keys = plugin-cache-1:xyz" "${FLOX_NIX_CONF}"
+
+  unstub flox
+}

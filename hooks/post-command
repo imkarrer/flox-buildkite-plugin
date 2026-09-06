@@ -7,11 +7,12 @@ set -euo pipefail
 # .buildkite/lib/s3-cache-push.sh.
 #
 # Opt-in and idempotent: this is a no-op unless s3-cache-push is enabled AND
-# s3-cache-bucket is set, so standard pipelines are unaffected.
-BUCKET="${BUILDKITE_PLUGIN_FLOX_S3_CACHE_BUCKET:-}"
-ENDPOINT="${BUILDKITE_PLUGIN_FLOX_S3_CACHE_ENDPOINT:-}"
-REGION="${BUILDKITE_PLUGIN_FLOX_S3_CACHE_REGION:-auto}"
-PUSH="${BUILDKITE_PLUGIN_FLOX_S3_CACHE_PUSH:-false}"
+# a bucket is set (plugin key or S3_CACHE_* env), so standard pipelines are
+# unaffected. Plugin key wins; same precedence as floxhub-token → FLOX_TOKEN.
+BUCKET="${BUILDKITE_PLUGIN_FLOX_S3_CACHE_BUCKET:-${S3_CACHE_BUCKET:-}}"
+ENDPOINT="${BUILDKITE_PLUGIN_FLOX_S3_CACHE_ENDPOINT:-${S3_CACHE_ENDPOINT:-}}"
+REGION="${BUILDKITE_PLUGIN_FLOX_S3_CACHE_REGION:-${S3_CACHE_REGION:-auto}}"
+PUSH="${BUILDKITE_PLUGIN_FLOX_S3_CACHE_PUSH:-${S3_CACHE_PUSH:-false}}"
 
 [[ -n "$BUCKET" ]] || {
   echo "--- :flox: no S3 cache configured; skipping write-back"

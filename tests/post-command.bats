@@ -23,6 +23,28 @@ setup() {
   assert_output --partial "opt-in"
 }
 
+@test "post-command pushes when S3_CACHE_* pipeline env enables write-back" {
+  export S3_CACHE_BUCKET="env-cache"
+  export S3_CACHE_ENDPOINT="http://minio:9000"
+  export S3_CACHE_REGION="us-east-1"
+  export S3_CACHE_PUSH="true"
+  export AWS_ACCESS_KEY_ID="AKID"
+  export AWS_SECRET_ACCESS_KEY="SAK"
+  export S3_CACHE_SIGNING_KEY="env-cache-1:secret"
+
+  stub flox ':: echo /nix/store/abc123-env'
+  stub nix ':: echo "pushed"'
+
+  run "$PWD/hooks/post-command"
+
+  assert_success
+  assert_output --partial "pushed"
+  assert_output --partial "push complete"
+
+  unstub flox
+  unstub nix
+}
+
 @test "post-command pushes the env closure when s3-cache-push is enabled" {
   export BUILDKITE_PLUGIN_FLOX_S3_CACHE_BUCKET="my-cache"
   export BUILDKITE_PLUGIN_FLOX_S3_CACHE_ENDPOINT="https://example.com"

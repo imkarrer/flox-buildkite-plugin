@@ -10,16 +10,57 @@ set -euo pipefail
 
 mode="${1:?usage: $0 cold|image}"
 
+# Usage: docker_run IMAGE [docker options...] -- [command args...]
+# Docker options (--entrypoint, -e) must come before IMAGE. Command args
+# (bash's -ec SCRIPT) must come after. Putting -ec in the options position
+# makes Docker parse it as `--env c`.
+#
+# Do not --volumes-from the agent. That also attaches buildkite-nix:/nix.
+# The flox .deb preinst then sees /nix/var/nix/db/db.sqlite, cannot find a
+# nix binary, and aborts; `rm /nix` fails because the path is a mount.
+# Mount only the volume that covers $PWD (the checkout).
 docker_run() {
   local image=$1
   shift
-  local cid
+  local cid docker_opts=() cmd=() mount_args=() seen_dd=false arg
   cid="$(cat /etc/hostname 2>/dev/null || true)"
+  for arg in "$@"; do
+    if [[ "$seen_dd" == false && "$arg" == "--" ]]; then
+      seen_dd=true
+      continue
+    fi
+    if [[ "$seen_dd" == true ]]; then
+      cmd+=("$arg")
+    else
+      docker_opts+=("$arg")
+    fi
+  done
   if [[ -n "$cid" ]] && docker inspect "$cid" >/dev/null 2>&1; then
-    docker run --rm --volumes-from "$cid" -w "$PWD" "$@" "$image"
+    local pwd_p dest name source best_dest="" best_src=""
+    pwd_p="$(pwd -P)"
+    while IFS=$'\t' read -r dest name source; do
+      [[ -n "$dest" ]] || continue
+      if [[ "$pwd_p" == "$dest" || "$pwd_p" == "$dest"/* ]]; then
+        if [[ ${#dest} -ge ${#best_dest} ]]; then
+          best_dest=$dest
+          if [[ -n "$name" ]]; then
+            best_src=$name
+          else
+            best_src=$source
+          fi
+        fi
+      fi
+    done < <(docker inspect -f '{{range .Mounts}}{{printf "%s\t%s\t%s\n" .Destination .Name .Source}}{{end}}' "$cid")
+    if [[ -z "$best_src" ]]; then
+      echo "+++ :flox: no volume covers ${pwd_p}; cannot share the checkout" >&2
+      exit 1
+    fi
+    echo "--- :flox: mounting checkout ${best_src}:${best_dest} (not /nix)"
+    mount_args=(-v "${best_src}:${best_dest}" -w "$PWD")
   else
-    docker run --rm -v "$PWD:$PWD" -w "$PWD" "$@" "$image"
+    mount_args=(-v "$PWD:$PWD" -w "$PWD")
   fi
+  docker run --rm "${mount_args[@]}" "${docker_opts[@]}" "$image" "${cmd[@]}"
 }
 
 case "$mode" in
@@ -31,7 +72,8 @@ case "$mode" in
       -e BUILDKITE_PLUGIN_FLOX_DIR=examples/hello \
       -e BUILDKITE_PLUGIN_FLOX_VERSION=1.14.0 \
       -e FLOX_DISABLE_METRICS=true \
-      -ec "$(cat <<'EOF'
+      -e DEBIAN_FRONTEND=noninteractive \
+      -- -ec "$(cat <<'EOF'
 set -euo pipefail
 if command -v flox >/dev/null 2>&1; then
   echo "+++ flox already on PATH — this image is not a cold agent"
@@ -63,7 +105,7 @@ EOF
       -e BUILDKITE_PLUGIN_FLOX_COMMAND=hello \
       -e BUILDKITE_PLUGIN_FLOX_DIR=examples/hello \
       -e FLOX_DISABLE_METRICS=true \
-      -ec "$(cat <<'EOF'
+      -- -ec "$(cat <<'EOF'
 set -euo pipefail
 command -v flox >/dev/null
 source ./hooks/environment
