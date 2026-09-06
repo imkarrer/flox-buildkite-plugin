@@ -530,7 +530,7 @@ Usage — note the reference is `imkarrer/flox`, because Buildkite strips the `-
 steps:
   - label: ":flox: build"
     plugins:
-      - imkarrer/flox#v1.0.0:
+      - imkarrer/flox#main:
           command: npm run build
 ```
 
@@ -559,11 +559,11 @@ If you have 20 spare seconds, the monorepo config sells itself:
 ```yml
 steps:
   - plugins:
-      - imkarrer/flox#v1.0.0:
+      - imkarrer/flox#main:
           dir: backend
           command: cargo build
   - plugins:
-      - imkarrer/flox#v1.0.0:
+      - imkarrer/flox#main:
           dir: frontend
           command: vite build
 ```
@@ -658,9 +658,7 @@ Good instinct. Pin the git ref and read it — ~400 lines of bash across four ho
 - **Record both demos as fallback video.** Non-negotiable for a 20-minute slot — you cannot absorb a wifi failure.
 - **Diagrams needed:** (1) laptop/CI/prod drifting, Slide 2. (2) Buildkite hybrid, Slide 8.
 - **Act 5 has a little slack now.** Its beats sum to 3:00 (60+45+45+30) with Beat 4 as a landing line rather than a second demo. Act 4's beats still sum to ~4:30 inside a 5:00 budget. Don't steal from Act 5 to pad Act 4 — Act 5 is the one where you're typing live.
-- **Use block-style YAML for the monorepo snippet in Act 6.** The compressed flow style is valid (the `#` in `plugin#v1.0.0` isn't a comment because no whitespace precedes it), but it's dense and inconsistent with every other snippet in the deck.
-
-- **Verify plugin facts against `main` the day before.** This repo moves fast, and three claims in this plan went stale inside two weeks: the plugin reference (`imkarrer/flox`, not `imkarrer/flox-buildkite-plugin`), the hook line count (406 across four hooks, not 70 across three), and the install mechanism. Re-run `wc -l hooks/*` and skim `plugin.yml` before you finalize slides.
-- **Still no git tags**, despite the README referencing `#v1.0.0` throughout, and your slides use the same pin. Either tag `v1.0.0` or change the slides to `#main` — the pipeline already self-tests against `imkarrer/flox#main`. Someone will copy that line off your slide the same night, and an unresolvable ref is a bad first impression.
-- **New since v1, worth knowing even if you don't present it:** `activation-mode` (dev/run), an S3-compatible binary cache with signed write-back (`s3-cache-*` plus a `post-command` hook), cold `/nix` volume seeding, and single-user Nix fallback for containers without systemd. The cache is the one that matters on stage — it's your answer to the cold-start objection.
+- **Use block-style YAML for the monorepo snippet in Act 6.**
+- **Verify plugin facts against `main` the day before.** Reference is `imkarrer/flox#main` (no release tag). Cache identity is `S3_CACHE_*` env, not a YAML anchor. Re-skim `plugin.yml` and the README.
+- **On stage if asked about cold start:** S3 binary cache (`S3_CACHE_*`) plus optional pre-baked agent image. Don't attach a `/nix` volume to a stock image and then auto-install.
 - **Local hook:** if you can name a Chippewa Valley company or project that's felt "works on my machine," use it in Act 1 instead of the generic hand-raise.

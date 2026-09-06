@@ -759,7 +759,7 @@ Flox ships integrations for GitHub Actions, CircleCI, and GitLab. **For Buildkit
 steps:
   - label: ":flox: build"
     plugins:
-      - imkarrer/flox#v1.0.0:
+      - imkarrer/flox#main:
           command: npm run build
 ```
 
@@ -802,8 +802,7 @@ Reference is `imkarrer/flox` — Buildkite strips the -buildkite-plugin suffix.
 Prior art: jbayer/flox-buildkite. Say "no OFFICIAL integration," not
 "nothing," and credit it. Costs five seconds, and you look better for it.
 
-NOTE: no git tags exist yet — either tag v1.0.0 or change this to #main
-before someone copies it off your slide.
+Pin is `#main` — there is no release tag yet.
 -->
 
 ---

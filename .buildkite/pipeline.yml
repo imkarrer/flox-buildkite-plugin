@@ -1,14 +1,8 @@
-# Self-test pipeline: this plugin dogfoods itself against the example
-# environment in examples/hello. Point a Buildkite pipeline at this repo.
-#
-# Queue `self` is the ac-box agent. Unit tests/lint use Docker images;
-# scripts/bk-docker-run.sh handles a containerized agent (docker.sock).
+# Self-test on queue `self` (ac-box). Cache identity is agent `S3_CACHE_*`.
+# Docker-in-Docker: scripts/bk-docker-run.sh and scripts/ci-agent-paths.sh.
 
 agents:
   queue: self
-
-# Cache identity (S3_CACHE_*) comes from the resident ac-box agent.
-# Steps only set per-step plugin keys: command / dir / environment / trust.
 
 steps:
   - label: ":bash: unit tests"
@@ -29,9 +23,7 @@ steps:
           dir: examples/hello
           command: hello
 
-  # Needs FLOX_TOKEN on the agent (or floxhub-token here) and
-  # `flox push -d examples/hello` → imkarrer/hello. soft_fail so a missing
-  # or expired token never blocks the build — same as the old GHA job.
+  # FLOX_TOKEN on the agent (or floxhub-token). soft_fail if the token is missing.
   - label: ":flox: remote env"
     soft_fail: true
     plugins:

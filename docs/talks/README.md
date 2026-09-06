@@ -26,10 +26,9 @@ Need Flox first? [Install it](https://flox.dev/docs/install-flox/install) (`brew
 The toolchain is pinned in a Flox environment, so there's nothing to install:
 
 ```console
-$ flox activate -- make          # html + pdf
+$ flox activate -- make          # html + pdf + pptx
 $ flox activate -- make serve    # live preview at localhost:8080/slides.md
 $ flox activate -- make check    # fail if any slide overflows the canvas
-$ flox activate -- make pptx     # PowerPoint, if the venue insists
 $ flox activate -- make png      # one PNG per slide
 ```
 
