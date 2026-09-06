@@ -31,3 +31,4 @@ steps:
       - imkarrer/flox#main:
           environment: imkarrer/hello
           command: hello
+          trust: true
