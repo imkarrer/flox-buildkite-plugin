@@ -16,6 +16,10 @@ steps:
 
   - wait
 
+  - label: ":flox: cold start (no flox on PATH)"
+    key: cold
+    command: bash scripts/ci-agent-paths.sh cold
+
   - label: ":flox: local env"
     plugins:
       - imkarrer/flox#main:
@@ -32,3 +36,9 @@ steps:
           environment: imkarrer/hello
           command: hello
           trust: true
+
+  - wait
+
+  - label: ":docker: pre-baked agent image"
+    key: image
+    command: bash scripts/ci-agent-paths.sh image

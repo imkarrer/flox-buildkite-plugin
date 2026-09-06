@@ -359,7 +359,7 @@ flox activate -c "docker compose run --rm lint"
 
 These run on every push and pull request via [Buildkite](https://buildkite.com/isaac-karrer/flox-buildkite-plugin) ([`.buildkite/pipeline.yml`](.buildkite/pipeline.yml)) on the `self` queue:
 
-- **Blocking** — unit tests, lint, and a real `flox activate` against `examples/hello`. No account or token needed.
+- **Blocking** — unit tests, lint, a cold-start install on stock `buildkite/agent:3-ubuntu` (flox is not on `PATH`), a `docker build` of the pre-baked agent image, and a real `flox activate` against `examples/hello`. No account or token needed.
 - **Non-blocking** — remote FloxHub env (`imkarrer/hello`). `soft_fail` so a missing or expired `FLOX_TOKEN` never blocks the build. Set `FLOX_TOKEN` on the agent to enable it.
 
 Generate the example environment once with:

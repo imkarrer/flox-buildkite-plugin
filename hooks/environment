@@ -140,7 +140,9 @@ install_flox() {
   case "$tmp" in
     *.deb)
       # apt resolves pre-depends (e.g. sudo); fall back to dpkg + apt -f.
+      # Fresh ubuntu agents have empty apt lists — update or install fails.
       if command -v apt-get &>/dev/null; then
+        sudo_if_needed apt-get update -qq
         sudo_if_needed apt-get install -y "$tmp"
       else
         sudo_if_needed dpkg -i --no-triggers "$tmp" || sudo_if_needed apt-get install -y -f
