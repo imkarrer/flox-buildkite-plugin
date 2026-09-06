@@ -1,11 +1,18 @@
 # Self-test pipeline: this plugin dogfoods itself against the example
 # environment in examples/hello. Point a Buildkite pipeline at this repo.
+#
+# Queue `self` is the ac-box agent. Unit tests/lint use Docker images;
+# scripts/bk-docker-run.sh handles a containerized agent (docker.sock).
+
+agents:
+  queue: self
+
 steps:
   - label: ":bash: unit tests"
-    command: docker-compose run --rm tests
+    command: bash scripts/bk-docker-run.sh tests
 
   - label: ":bash: lint"
-    command: docker-compose run --rm lint
+    command: bash scripts/bk-docker-run.sh lint
 
   - wait
 
