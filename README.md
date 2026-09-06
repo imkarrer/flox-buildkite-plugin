@@ -1,6 +1,6 @@
 # Flox Buildkite Plugin
 
-[![CI](https://github.com/imkarrer/flox-buildkite-plugin/actions/workflows/ci.yml/badge.svg)](https://github.com/imkarrer/flox-buildkite-plugin/actions/workflows/ci.yml)
+[![Build status](https://badge.buildkite.com/0931aada34b88f39844aa07d32a9b23d1fc4801c999685394f.svg?branch=main)](https://buildkite.com/isaac-karrer/flox-buildkite-plugin)
 
 Run your Buildkite steps inside a reproducible [Flox](https://flox.dev) environment that lives in your repo. No Dockerfile, no container registry, no image tags to keep in sync — the environment travels with your code, so a dependency change and the code that needs it land in a single commit.
 
@@ -357,14 +357,12 @@ Lint the plugin definition:
 flox activate -c "docker compose run --rm lint"
 ```
 
-These run on every push and pull request via [GitHub Actions](.github/workflows/ci.yml), alongside a real `flox activate` smoke test using [`flox/install-flox-action`](https://github.com/flox/install-flox-action):
+These run on every push and pull request via [Buildkite](https://buildkite.com/isaac-karrer/flox-buildkite-plugin) ([`.buildkite/pipeline.yml`](.buildkite/pipeline.yml)) on the `self` queue:
 
-- **Blocking** — `Unit tests & lint` and `Real flox activation (local env)`. No account or token needed. Mark these as required status checks in branch protection.
-- **Non-blocking** — `Real flox activation (remote env)` exercises the FloxHub path. A missing or expired `FLOX_TOKEN` produces a warning, never a merge-blocking failure, so token expiry never gates a merge. Add a `FLOX_TOKEN` repository secret to enable it; leave it as an *optional* check (not required) in branch protection.
+- **Blocking** — unit tests, lint, and a real `flox activate` against `examples/hello`. No account or token needed.
+- **Non-blocking** — remote FloxHub env (`imkarrer/hello`). `soft_fail` so a missing or expired `FLOX_TOKEN` never blocks the build. Set `FLOX_TOKEN` on the agent to enable it.
 
-### End-to-end
-
-The plugin dogfoods itself via [`.buildkite/pipeline.yml`](.buildkite/pipeline.yml) against the environment in `examples/hello` — no separate consumer repo required. Point a Buildkite pipeline at this repo to run it. Generate the example environment once with:
+Generate the example environment once with:
 
 ```shell
 flox init -d examples/hello
