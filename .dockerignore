@@ -1,0 +1,14 @@
+.git
+.gitattributes
+.gitignore
+.bats-libs
+.buildkite
+.flox
+tests
+docs
+examples
+scripts
+README.md
+FLOX.md
+LICENSE
+docker-compose.yml

@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
-# Prove the two agent stories the README advertises.
+# Prove the two agent stories the README advertises, plus release the image.
 #
-#   cold  — stock buildkite/agent:3-ubuntu, flox not on PATH, plugin installs it
-#   image — docker build the pre-baked Dockerfile, then activate with flox already there
+#   cold    — stock buildkite/agent:3-ubuntu, flox not on PATH, plugin installs it
+#   image   — docker build the pre-baked Dockerfile, then activate with flox already there
+#   publish — build the Dockerfile and push it to Docker Hub (tag builds only)
 #
 # The ac-box CI agent already has flox, so `plugins: imkarrer/flox` never hits
 # the install branch. These steps run a disposable container instead.
 set -euo pipefail
 
-mode="${1:?usage: $0 cold|image}"
+mode="${1:?usage: $0 cold|image|publish}"
 
 # Usage: docker_run IMAGE [docker options...] -- [command args...]
 # Docker options (--entrypoint, -e) must come before IMAGE. Command args
@@ -113,8 +114,34 @@ source ./hooks/environment
 EOF
 )"
     ;;
+  publish)
+    # Released from a tag build (see .buildkite/pipeline.yml's `if: build.tag
+    # != null`), so $BUILDKITE_TAG is the version. The Docker Hub namespace
+    # (imkarrer) is public, non-secret info — only the auth token is a secret.
+    tag="${BUILDKITE_TAG:?publish requires a tag build (BUILDKITE_TAG unset)}"
+    image="imkarrer/flox-buildkite-agent"
+
+    echo "--- :docker: build ${image}:${tag}"
+    docker build -t "${image}:${tag}" -t "${image}:latest" .
+
+    if [[ -z "${DOCKERHUB_TOKEN:-}" ]] && command -v buildkite-agent &>/dev/null; then
+      DOCKERHUB_TOKEN="$(buildkite-agent secret get DOCKERHUB_TOKEN 2>/dev/null || true)"
+    fi
+    [[ -n "${DOCKERHUB_TOKEN:-}" ]] || {
+      echo "+++ :docker: publish needs DOCKERHUB_TOKEN (job env or Buildkite secret)." >&2
+      exit 1
+    }
+
+    echo "--- :docker: login to Docker Hub as imkarrer"
+    echo "$DOCKERHUB_TOKEN" | docker login --username imkarrer --password-stdin
+    trap 'docker logout >/dev/null 2>&1 || true' EXIT
+
+    echo "--- :docker: push ${image}:${tag} and :latest"
+    docker push "${image}:${tag}"
+    docker push "${image}:latest"
+    ;;
   *)
-    echo "usage: $0 cold|image" >&2
+    echo "usage: $0 cold|image|publish" >&2
     exit 2
     ;;
 esac
