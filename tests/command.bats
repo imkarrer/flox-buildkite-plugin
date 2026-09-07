@@ -70,6 +70,29 @@ setup() {
   unstub flox
 }
 
+@test "passes --trust for a borrowed --dir environment (no remote environment set)" {
+  export BUILDKITE_PLUGIN_FLOX_DIR="/app"
+  export BUILDKITE_PLUGIN_FLOX_TRUST="true"
+
+  stub flox 'activate -d /app -t -c hello : echo "Dir trusted"'
+
+  run "$PWD/hooks/command"
+
+  assert_success
+  assert_output --partial "Dir trusted"
+
+  unstub flox
+}
+
+@test "fails with a friendly error when command is missing" {
+  unset BUILDKITE_PLUGIN_FLOX_COMMAND
+
+  run "$PWD/hooks/command"
+
+  assert_failure
+  assert_output --partial "'command' is required"
+}
+
 @test "fails when flox activate fails" {
   stub flox 'activate -c hello : exit 1'
 

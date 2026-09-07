@@ -29,21 +29,24 @@ resolve_download_url() {
   local channel="${1:-stable}"
   local version="${2:-}"
   local os arch pkg_dir triple ext version_part base
+  local uname_s uname_m
+  uname_s="$(uname -s)"
+  uname_m="$(uname -m)"
 
-  case "$(uname -s)" in
+  case "$uname_s" in
     Linux)  os=linux ;;
     Darwin) os=darwin ;;
     *)
-      echo "+++ :flox: Unsupported OS: $(uname -s). Install flox manually."
+      echo "+++ :flox: Unsupported OS: ${uname_s}. Install flox manually."
       exit 1
       ;;
   esac
 
-  case "$(uname -m)" in
+  case "$uname_m" in
     x86_64|amd64)  arch=x86_64 ;;
     aarch64|arm64) arch=aarch64 ;;
     *)
-      echo "+++ :flox: Unsupported architecture: $(uname -m). Install flox manually."
+      echo "+++ :flox: Unsupported architecture: ${uname_m}. Install flox manually."
       exit 1
       ;;
   esac
@@ -255,33 +258,42 @@ configure_s3_cache() {
   fi
 }
 
-# --- Install flox if missing -----------------------------------------------
+main() {
+  # --- Install flox if missing -----------------------------------------------
 
-ensure_nix_seeded
+  ensure_nix_seeded
 
-if ! command -v flox &>/dev/null; then
-  echo "--- :flox: Installing flox"
-  install_flox
-  echo "flox $(flox --version) installed"
-else
-  echo "--- :flox: Using pre-installed flox ($(flox --version 2>/dev/null || echo '?'))"
-  # Pre-installed flox still needs a usable Nix store on cold containers.
-  ensure_nix_usable
-fi
-
-# --- Configure S3 binary cache (read path) ---------------------------------
-
-configure_s3_cache
-
-# --- Authenticate if remote environment is requested -----------------------
-
-ENVIRONMENT="${BUILDKITE_PLUGIN_FLOX_ENVIRONMENT:-}"
-FLOXHUB_TOKEN="${BUILDKITE_PLUGIN_FLOXHUB_TOKEN:-${FLOX_TOKEN:-}}"
-
-if [[ -n "$ENVIRONMENT" && -n "$FLOXHUB_TOKEN" ]]; then
-  if ! flox auth status &>/dev/null; then
-    echo "--- :flox: Authenticating with FloxHub"
-    echo "$FLOXHUB_TOKEN" | flox auth login --token-file -
-    flox auth status || { echo "+++ :flox: FloxHub authentication failed"; exit 1; }
+  if ! command -v flox &>/dev/null; then
+    echo "--- :flox: Installing flox"
+    install_flox
+    echo "flox $(flox --version) installed"
+  else
+    echo "--- :flox: Using pre-installed flox ($(flox --version 2>/dev/null || echo '?'))"
+    # Pre-installed flox still needs a usable Nix store on cold containers.
+    ensure_nix_usable
   fi
+
+  # --- Configure S3 binary cache (read path) ---------------------------------
+
+  configure_s3_cache
+
+  # --- Authenticate if remote environment is requested -----------------------
+
+  local environment floxhub_token
+  environment="${BUILDKITE_PLUGIN_FLOX_ENVIRONMENT:-}"
+  floxhub_token="${BUILDKITE_PLUGIN_FLOX_FLOXHUB_TOKEN:-${FLOX_TOKEN:-}}"
+
+  if [[ -n "$environment" && -n "$floxhub_token" ]]; then
+    if ! flox auth status &>/dev/null; then
+      echo "--- :flox: Authenticating with FloxHub"
+      echo "$floxhub_token" | flox auth login --token-file -
+      flox auth status || { echo "+++ :flox: FloxHub authentication failed"; exit 1; }
+    fi
+  fi
+}
+
+# Run main only when executed directly (as Buildkite runs `./hooks/environment`),
+# not when sourced — lets tests load resolve_download_url() etc. in isolation.
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  main
 fi

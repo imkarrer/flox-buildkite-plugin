@@ -35,7 +35,7 @@ configuration:
     trust:
       type: boolean
       default: false
-      description: Trust remote environments (equivalent to flox activate --trust)
+      description: Trust an environment you don't own — remote (environment) or borrowed (dir) — equivalent to flox activate --trust
     s3-cache-bucket:
       type: string
       default: ""

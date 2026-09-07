@@ -92,3 +92,176 @@ teardown() {
 
   unstub flox
 }
+
+# --- FloxHub auth (regression coverage for BUILDKITE_PLUGIN_FLOX_FLOXHUB_TOKEN) ---
+
+@test "environment hook skips FloxHub auth when no environment is requested" {
+  stub flox '--version : echo "flox 1.14.0"' '--version : echo "flox 1.14.0"'
+
+  run "$PWD/hooks/environment"
+
+  assert_success
+  refute_output --partial "Authenticating with FloxHub"
+
+  unstub flox
+}
+
+@test "environment hook skips FloxHub auth when an environment is requested but no token is available" {
+  export BUILDKITE_PLUGIN_FLOX_ENVIRONMENT="my-org/my-env"
+  stub flox '--version : echo "flox 1.14.0"' '--version : echo "flox 1.14.0"'
+
+  run "$PWD/hooks/environment"
+
+  assert_success
+  refute_output --partial "Authenticating with FloxHub"
+
+  unstub flox
+}
+
+@test "environment hook skips login when flox is already authenticated" {
+  export BUILDKITE_PLUGIN_FLOX_ENVIRONMENT="my-org/my-env"
+  export BUILDKITE_PLUGIN_FLOX_FLOXHUB_TOKEN="secret-token"
+  stub flox \
+    '--version : echo "flox 1.14.0"' \
+    '--version : echo "flox 1.14.0"' \
+    'auth status : echo "already logged in"'
+
+  run "$PWD/hooks/environment"
+
+  assert_success
+  refute_output --partial "Authenticating with FloxHub"
+
+  unstub flox
+}
+
+@test "environment hook authenticates using the floxhub-token plugin key" {
+  export BUILDKITE_PLUGIN_FLOX_ENVIRONMENT="my-org/my-env"
+  export BUILDKITE_PLUGIN_FLOX_FLOXHUB_TOKEN="secret-token"
+  stub flox \
+    '--version : echo "flox 1.14.0"' \
+    '--version : echo "flox 1.14.0"' \
+    'auth status : exit 1' \
+    'auth login --token-file - : echo "Logged in"' \
+    'auth status : echo "Logged in as testuser"'
+
+  run "$PWD/hooks/environment"
+
+  assert_success
+  assert_output --partial "Authenticating with FloxHub"
+
+  unstub flox
+}
+
+@test "environment hook falls back to FLOX_TOKEN when floxhub-token is not set" {
+  export BUILDKITE_PLUGIN_FLOX_ENVIRONMENT="my-org/my-env"
+  export FLOX_TOKEN="fallback-token"
+  stub flox \
+    '--version : echo "flox 1.14.0"' \
+    '--version : echo "flox 1.14.0"' \
+    'auth status : exit 1' \
+    'auth login --token-file - : echo "Logged in"' \
+    'auth status : echo "Logged in as testuser"'
+
+  run "$PWD/hooks/environment"
+
+  assert_success
+  assert_output --partial "Authenticating with FloxHub"
+
+  unstub flox
+}
+
+@test "environment hook prefers the floxhub-token plugin key over FLOX_TOKEN" {
+  export BUILDKITE_PLUGIN_FLOX_ENVIRONMENT="my-org/my-env"
+  export FLOX_TOKEN="fallback-token"
+  export BUILDKITE_PLUGIN_FLOX_FLOXHUB_TOKEN="plugin-wins-token"
+  local tokenfile="${BATS_TEST_TMPDIR}/token_seen"
+  stub flox \
+    '--version : echo "flox 1.14.0"' \
+    '--version : echo "flox 1.14.0"' \
+    'auth status : exit 1' \
+    "auth login --token-file - : cat > '${tokenfile}'; echo Logged in" \
+    'auth status : echo "Logged in as testuser"'
+
+  run "$PWD/hooks/environment"
+
+  assert_success
+  [ "$(cat "${tokenfile}")" = "plugin-wins-token" ]
+
+  unstub flox
+}
+
+# --- resolve_download_url (unit tests; sourced so main() does not execute) ---
+
+@test "resolve_download_url builds a versioned deb URL for stable/linux/x86_64" {
+  source "$PWD/hooks/environment"
+  stub uname '-s : echo Linux' '-m : echo x86_64'
+
+  run resolve_download_url stable 1.14.0
+
+  assert_success
+  assert_output "https://downloads.flox.dev/by-env/stable/deb/flox-1.14.0.x86_64-linux.deb"
+
+  unstub uname
+}
+
+@test "resolve_download_url builds an unversioned URL when version is empty" {
+  source "$PWD/hooks/environment"
+  stub uname '-s : echo Linux' '-m : echo aarch64'
+
+  run resolve_download_url stable ""
+
+  assert_success
+  assert_output "https://downloads.flox.dev/by-env/stable/deb/flox.aarch64-linux.deb"
+
+  unstub uname
+}
+
+@test "resolve_download_url builds a macOS pkg URL without checking dpkg/rpm" {
+  source "$PWD/hooks/environment"
+  stub uname '-s : echo Darwin' '-m : echo x86_64'
+
+  run resolve_download_url qa 1.14.0
+
+  assert_success
+  assert_output "https://downloads.flox.dev/by-env/qa/osx/flox-1.14.0.x86_64-darwin.pkg"
+
+  unstub uname
+}
+
+@test "resolve_download_url routes a commit hash channel through by-commit" {
+  source "$PWD/hooks/environment"
+  stub uname '-s : echo Linux' '-m : echo x86_64'
+
+  run resolve_download_url deadbeef 2.0.0
+
+  assert_success
+  assert_output "https://downloads.flox.dev/by-commit/deadbeef/deb/flox-2.0.0.x86_64-linux.deb"
+
+  unstub uname
+}
+
+@test "resolve_download_url fails loudly on an unsupported OS" {
+  source "$PWD/hooks/environment"
+  # `uname -s`/`uname -m` are each captured once upfront, so -m is still
+  # called even though the OS check fails first.
+  stub uname '-s : echo Windows' '-m : echo x86_64'
+
+  run resolve_download_url stable ""
+
+  assert_failure
+  assert_output --partial "Unsupported OS: Windows"
+
+  unstub uname
+}
+
+@test "resolve_download_url fails loudly on an unsupported architecture" {
+  source "$PWD/hooks/environment"
+  stub uname '-s : echo Linux' '-m : echo mips'
+
+  run resolve_download_url stable ""
+
+  assert_failure
+  assert_output --partial "Unsupported architecture: mips"
+
+  unstub uname
+}
