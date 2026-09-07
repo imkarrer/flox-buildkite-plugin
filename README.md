@@ -2,12 +2,12 @@
 
 [![Build status](https://badge.buildkite.com/0931aada34b88f39844aa07d32a9b23d1fc4801c999685394f.svg?branch=main)](https://buildkite.com/isaac-karrer/flox-buildkite-plugin)
 
-Run a Buildkite step inside a [Flox](https://flox.dev) environment from the repo (`.flox/`) or FloxHub. If `flox` is missing, the plugin installs it from `downloads.flox.dev`. Pin a commit or tag in the plugin ref (`imkarrer/flox#main` until there is a release tag).
+Run a Buildkite step inside a [Flox](https://flox.dev) environment from the repo (`.flox/`) or FloxHub. If `flox` is missing, the plugin installs it from `downloads.flox.dev`. Pin a tag in the plugin ref — `imkarrer/flox#v1.0.0` — rather than `#main`, so a pipeline doesn't move when this repo does.
 
 ```yml
 steps:
   - plugins:
-      - imkarrer/flox#main:
+      - imkarrer/flox#v1.0.0:
           command: npm run build
 ```
 
@@ -18,7 +18,7 @@ Local `.flox/` — no auth:
 ```yml
 steps:
   - plugins:
-      - imkarrer/flox#main:
+      - imkarrer/flox#v1.0.0:
           command: npm run build
 ```
 
@@ -27,17 +27,17 @@ Subdirectory (monorepo):
 ```yml
 steps:
   - plugins:
-      - imkarrer/flox#main:
+      - imkarrer/flox#v1.0.0:
           dir: backend
           command: cargo test
 ```
 
-Remote FloxHub env — set `FLOX_TOKEN` on the agent or pipeline; pass `trust: true` for another org's env:
+Remote FloxHub env — set `FLOX_TOKEN` (or `floxhub-token`) on the agent or pipeline; pass `trust: true` for an env you don't own (another org's, or a borrowed `dir`):
 
 ```yml
 steps:
   - plugins:
-      - imkarrer/flox#main:
+      - imkarrer/flox#v1.0.0:
           environment: my-org/netlify-deploy
           command: netlify deploy
 ```
@@ -52,7 +52,7 @@ steps:
 | `dir` | — | Directory that contains `.flox/` |
 | `environment` | — | FloxHub env `owner/name` |
 | `floxhub-token` | — | Auth for remote envs; else `FLOX_TOKEN` |
-| `trust` | `false` | `flox activate --trust` |
+| `trust` | `false` | `flox activate --trust` — for `environment` or a borrowed `dir` |
 | `activation-mode` | manifest | `dev` or `run` (`flox activate -m`) |
 | `channel` | `stable` | `stable` / `qa` / `nightly` / commit hash |
 | `version` | channel latest | Pin the flox package (e.g. `1.14.0`) |
@@ -85,7 +85,7 @@ env:
 
 steps:
   - plugins:
-      - imkarrer/flox#main:
+      - imkarrer/flox#v1.0.0:
           command: npm test
 ```
 
@@ -112,9 +112,19 @@ Used when `flox` is not on `PATH`. Alpine/musl is not supported (`buildkite/agen
 
 [`Dockerfile`](Dockerfile) is `buildkite/agent:3-ubuntu` plus flox (`FLOX_VERSION`), a nix-daemon entrypoint, optional baked substituter (`S3_CACHE_*` build args), optional `SEED_PACKAGES`, and `/opt/nix-seed` for a cold `/nix` volume.
 
+Pull the published image instead of building your own:
+
 ```bash
-docker build -t your-registry/buildkite-agent-flox:latest .
+docker pull imkarrer/flox-buildkite-agent:v1.0.0   # or :latest
 ```
+
+Or build it yourself, e.g. to change `SEED_PACKAGES` or bake your own S3 cache substituter:
+
+```bash
+docker build -t your-registry/flox-buildkite-agent:latest .
+```
+
+`imkarrer/flox-buildkite-agent` is published from `.buildkite/pipeline.yml`'s `publish` step, which runs only on tag builds (`if: build.tag != null`) and needs a `DOCKERHUB_TOKEN` Buildkite secret on the `self` queue.
 
 ## Developing
 
@@ -132,6 +142,7 @@ CI is [Buildkite](https://buildkite.com/isaac-karrer/flox-buildkite-plugin) (`.b
 
 - Blocking: unit tests, lint, cold-start install on stock `buildkite/agent:3-ubuntu`, `examples/hello` activate, pre-baked image build
 - Soft-fail: FloxHub `imkarrer/hello` (needs `FLOX_TOKEN` on the agent)
+- Tag builds only: publish `imkarrer/flox-buildkite-agent` to Docker Hub
 
 Cache identity for that queue comes from the agent. Example env: `examples/hello/.flox/`.
 
