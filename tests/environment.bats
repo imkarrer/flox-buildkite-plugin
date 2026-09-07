@@ -7,6 +7,15 @@ setup() {
   # Point the hook's nix.conf at a per-test temp file (FLOX_NIX_CONF is honored
   # by configure_s3_cache) so the suite runs rootless, with no sudo.
   export FLOX_NIX_CONF="${BATS_TEST_TMPDIR}/nix/nix.conf"
+
+  # resolve_download_url's Linux branch picks .deb/.rpm via `command -v
+  # dpkg`/`rpm`. Fake dpkg onto PATH so that check is deterministic here
+  # regardless of the host's real packaging — the plugin-tester CI image is
+  # Alpine (musl, no dpkg/rpm at all), unlike most dev machines.
+  mkdir -p "${BATS_TEST_TMPDIR}/bin"
+  : > "${BATS_TEST_TMPDIR}/bin/dpkg"
+  chmod +x "${BATS_TEST_TMPDIR}/bin/dpkg"
+  PATH="${BATS_TEST_TMPDIR}/bin:${PATH}"
 }
 
 teardown() {
