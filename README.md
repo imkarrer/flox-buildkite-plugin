@@ -115,7 +115,7 @@ Used when `flox` is not on `PATH`. Alpine/musl is not supported (`buildkite/agen
 Pull the published image instead of building your own:
 
 ```bash
-docker pull imkarrer/flox-buildkite-agent:v1.0.0   # or :latest
+docker pull ferahgo/flox-buildkite-agent:v1.0.0   # or :latest
 ```
 
 Or build it yourself, e.g. to change `SEED_PACKAGES` or bake your own S3 cache substituter:
@@ -124,7 +124,7 @@ Or build it yourself, e.g. to change `SEED_PACKAGES` or bake your own S3 cache s
 docker build -t your-registry/flox-buildkite-agent:latest .
 ```
 
-`imkarrer/flox-buildkite-agent` is published from `.buildkite/pipeline.yml`'s `publish` step, which runs only on tag builds (`if: build.tag != null`) and needs a `DOCKERHUB_TOKEN` Buildkite secret on the `self` queue.
+`ferahgo/flox-buildkite-agent` is published from `.buildkite/pipeline.yml`'s `publish` step, which runs only on tag builds (`if: build.tag != null`) and needs a `DOCKERHUB_TOKEN` Buildkite secret on the `self` queue.
 
 ## Developing
 
@@ -142,7 +142,7 @@ CI is [Buildkite](https://buildkite.com/isaac-karrer/flox-buildkite-plugin) (`.b
 
 - Blocking: unit tests, lint, cold-start install on stock `buildkite/agent:3-ubuntu`, `examples/hello` activate, pre-baked image build
 - Soft-fail: FloxHub `imkarrer/hello` (needs `FLOX_TOKEN` on the agent)
-- Tag builds only: publish `imkarrer/flox-buildkite-agent` to Docker Hub
+- Tag builds only: publish `ferahgo/flox-buildkite-agent` to Docker Hub
 
 Cache identity for that queue comes from the agent. Example env: `examples/hello/.flox/`.
 

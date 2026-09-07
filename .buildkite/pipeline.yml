@@ -1,6 +1,6 @@
 # Self-test on queue `self` (ac-box). Cache identity is agent `S3_CACHE_*`.
 # Docker-in-Docker: scripts/bk-docker-run.sh and scripts/ci-agent-paths.sh.
-# Tag builds (vX.Y.Z) also publish imkarrer/flox-buildkite-agent to Docker Hub;
+# Tag builds (vX.Y.Z) also publish ferahgo/flox-buildkite-agent to Docker Hub;
 # that step needs a DOCKERHUB_TOKEN Buildkite secret on this queue.
 
 agents:

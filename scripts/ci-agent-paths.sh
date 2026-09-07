@@ -116,10 +116,10 @@ EOF
     ;;
   publish)
     # Released from a tag build (see .buildkite/pipeline.yml's `if: build.tag
-    # != null`), so $BUILDKITE_TAG is the version. The Docker Hub namespace
-    # (imkarrer) is public, non-secret info — only the auth token is a secret.
+    # != null`), so $BUILDKITE_TAG is the version. The Docker Hub username
+    # (ferahgo) is public, non-secret info — only the auth token is a secret.
     tag="${BUILDKITE_TAG:?publish requires a tag build (BUILDKITE_TAG unset)}"
-    image="imkarrer/flox-buildkite-agent"
+    image="ferahgo/flox-buildkite-agent"
 
     echo "--- :docker: build ${image}:${tag}"
     docker build -t "${image}:${tag}" -t "${image}:latest" .
@@ -132,8 +132,8 @@ EOF
       exit 1
     }
 
-    echo "--- :docker: login to Docker Hub as imkarrer"
-    echo "$DOCKERHUB_TOKEN" | docker login --username imkarrer --password-stdin
+    echo "--- :docker: login to Docker Hub as ferahgo"
+    echo "$DOCKERHUB_TOKEN" | docker login --username ferahgo --password-stdin
     trap 'docker logout >/dev/null 2>&1 || true' EXIT
 
     echo "--- :docker: push ${image}:${tag} and :latest"

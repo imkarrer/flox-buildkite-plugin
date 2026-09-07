@@ -17,7 +17,7 @@ First tagged release. Pin `imkarrer/flox#v1.0.0` instead of `#main`.
 
 ### Added
 
-- `imkarrer/flox-buildkite-agent` published to Docker Hub from tag builds
+- `ferahgo/flox-buildkite-agent` published to Docker Hub from tag builds
   (`.buildkite/pipeline.yml`'s `publish` step).
 - Unit tests for `resolve_download_url` (channel/version/OS/arch matrix) and
   for the FloxHub auth path in `hooks/environment`.
