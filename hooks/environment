@@ -1,299 +1,41 @@
 #!/bin/bash
 set -euo pipefail
 
-# CI has no tty: tell flox which shell to use for `-c` subshells so it doesn't
-# warn about shell detection, and allow single-user Nix (no nix-daemon) to work
-# on containers that lack systemd. Both are overridable by the user.
-export FLOX_SHELL="${FLOX_SHELL:-bash}"
-export NIX_REMOTE="${NIX_REMOTE:-auto}"
+# Buildkite sources hooks into its own bootstrap shell (that's how a hook's
+# `export`s reach later steps), so this always runs — there's no "am I being
+# executed directly" case to guard against. Resolve the lib path from
+# BASH_SOURCE (not $0, which is Buildkite's bootstrap when sourced) so this
+# works whether sourced with a relative or absolute path.
+# shellcheck source=lib/environment.bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/environment.bash"
 
-# --- helpers ---------------------------------------------------------------
+# --- Install flox if missing -----------------------------------------------
 
-sudo_if_needed() {
-  if [[ "${EUID:-$(id -u)}" -eq 0 ]]; then
-    "$@"
-  elif command -v sudo &>/dev/null; then
-    sudo "$@"
-  else
-    echo "+++ :flox: Need root (or sudo) to install flox, but neither is available."
-    echo "Pre-install flox on the agent, or use the Dockerfile in this repo."
-    echo "See https://github.com/imkarrer/flox-buildkite-plugin#docker"
-    exit 1
-  fi
-}
+ensure_nix_seeded
 
-# Resolve the package download URL the same way flox/install-flox-action does:
-#   https://downloads.flox.dev/by-env/<channel>/{deb,rpm,osx}/flox[-<version>].<triple>.<ext>
-# An empty version selects the channel's latest build (unversioned filename).
-resolve_download_url() {
-  local channel="${1:-stable}"
-  local version="${2:-}"
-  local os arch pkg_dir triple ext version_part base
-  local uname_s uname_m
-  uname_s="$(uname -s)"
-  uname_m="$(uname -m)"
-
-  case "$uname_s" in
-    Linux)  os=linux ;;
-    Darwin) os=darwin ;;
-    *)
-      echo "+++ :flox: Unsupported OS: ${uname_s}. Install flox manually."
-      exit 1
-      ;;
-  esac
-
-  case "$uname_m" in
-    x86_64|amd64)  arch=x86_64 ;;
-    aarch64|arm64) arch=aarch64 ;;
-    *)
-      echo "+++ :flox: Unsupported architecture: ${uname_m}. Install flox manually."
-      exit 1
-      ;;
-  esac
-
-  if [[ "$os" == "darwin" ]]; then
-    pkg_dir=osx
-    ext=pkg
-  elif command -v dpkg &>/dev/null; then
-    pkg_dir=deb
-    ext=deb
-  elif command -v rpm &>/dev/null; then
-    pkg_dir=rpm
-    ext=rpm
-  else
-    echo "+++ :flox: No dpkg or rpm found — flox packages are glibc .deb/.rpm only."
-    echo "Alpine/musl agents are not supported. Use buildkite/agent:3-ubuntu"
-    echo "(see the Dockerfile in this repo), or pre-install flox."
-    exit 1
-  fi
-
-  triple="${arch}-${os}"
-  version_part=""
-  [[ -n "$version" ]] && version_part="-${version}"
-
-  case "$channel" in
-    stable|qa|nightly) base="https://downloads.flox.dev/by-env/${channel}" ;;
-    *)                 base="https://downloads.flox.dev/by-commit/${channel}" ;;
-  esac
-
-  echo "${base}/${pkg_dir}/flox${version_part}.${triple}.${ext}"
-}
-
-ensure_nix_usable() {
-  # Prefer a running daemon. If none, try to start one. On systems without
-  # systemd (typical containers), flox's postinst falls back to single-user
-  # Nix and the installer may leave /nix owned by root:nixbld — take ownership
-  # so the current user can use the store (matches install-flox-action).
-  if pgrep -x nix-daemon >/dev/null 2>&1; then
-    return 0
-  fi
-
-  local daemon=""
-  if command -v nix-daemon &>/dev/null; then
-    daemon="$(command -v nix-daemon)"
-  else
-    for p in /nix/var/nix/profiles/default/bin/nix-daemon /usr/bin/nix-daemon; do
-      [[ -x "$p" ]] && daemon="$p" && break
-    done
-  fi
-
-  if [[ -n "$daemon" ]]; then
-    echo "--- :flox: Starting nix-daemon"
-    # Detach so the hook can finish; ignore failure and fall through to
-    # single-user ownership fix if the daemon cannot start.
-    if [[ "${EUID:-$(id -u)}" -eq 0 ]]; then
-      "$daemon" >/tmp/nix-daemon.log 2>&1 &
-    elif command -v sudo &>/dev/null; then
-      sudo "$daemon" >/tmp/nix-daemon.log 2>&1 &
-    fi
-    sleep 2
-    if pgrep -x nix-daemon >/dev/null 2>&1; then
-      return 0
-    fi
-  fi
-
-  if [[ "$(uname -s)" == "Linux" ]] \
-    && [[ -d /nix ]] \
-    && [[ "$(cat /proc/1/comm 2>/dev/null || true)" != "systemd" ]]; then
-    echo "--- :flox: No systemd — configuring single-user Nix ownership of /nix"
-    sudo_if_needed chown -R "$(id -u):$(id -g)" /nix
-  fi
-}
-
-install_flox() {
-  local channel="${BUILDKITE_PLUGIN_FLOX_CHANNEL:-stable}"
-  local version="${BUILDKITE_PLUGIN_FLOX_VERSION:-}"
-  local url tmp
-
-  command -v curl &>/dev/null || {
-    echo "+++ :flox: curl is required to download flox."
-    exit 1
-  }
-
-  url="$(resolve_download_url "$channel" "$version")"
-  echo "Downloading: $url"
-
-  tmp="$(mktemp -d)/$(basename "$url")"
-  curl --fail --silent --show-error --location \
-    --retry 3 --retry-delay 2 \
-    --user-agent "flox-buildkite-plugin" \
-    "$url" --output "$tmp"
-
-  echo "Installing flox package..."
-  case "$tmp" in
-    *.deb)
-      # apt resolves pre-depends (e.g. sudo); fall back to dpkg + apt -f.
-      # Fresh ubuntu agents have empty apt lists — update or install fails.
-      if command -v apt-get &>/dev/null; then
-        sudo_if_needed apt-get update -qq
-        sudo_if_needed apt-get install -y "$tmp"
-      else
-        sudo_if_needed dpkg -i --no-triggers "$tmp" || sudo_if_needed apt-get install -y -f
-      fi
-      ;;
-    *.rpm) sudo_if_needed rpm -U --replacepkgs --notriggers "$tmp" ;;
-    *.pkg) sudo_if_needed installer -pkg "$tmp" -target / ;;
-    *)
-      echo "+++ :flox: Unknown package type: $tmp"
-      exit 1
-      ;;
-  esac
-
-  rm -f "$tmp"
+if ! command -v flox &>/dev/null; then
+  echo "--- :flox: Installing flox"
+  install_flox
+  echo "flox $(flox --version) installed"
+else
+  echo "--- :flox: Using pre-installed flox ($(flox --version 2>/dev/null || echo '?'))"
+  # Pre-installed flox still needs a usable Nix store on cold containers.
   ensure_nix_usable
+fi
 
-  # Refresh PATH for packages that land outside the current shell's hash table
-  hash -r 2>/dev/null || true
-  # Common install locations if PATH is minimal
-  export PATH="/usr/local/bin:/usr/bin:${PATH:-}"
+# --- Configure S3 binary cache (read path) ---------------------------------
 
-  command -v flox &>/dev/null || {
-    echo "+++ :flox: flox installation finished but 'flox' is not on PATH."
-    exit 1
-  }
-}
+configure_s3_cache
 
-# Seed the /nix cache volume from the copy baked into a custom agent image.
-# A Buildkite cache volume mounted at /nix is empty on the first build and
-# shadows the /nix baked into the image, leaving /usr/bin/flox a dangling
-# symlink. Restore it from /opt/nix-seed when cold (adapted from
-# jbayer/flox-buildkite .buildkite/lib/ensure-nix.sh).
-ensure_nix_seeded() {
-  flox --version &>/dev/null && return 0
-  [[ -d /opt/nix-seed ]] || return 0
-  echo "--- :flox: cold /nix cache volume — seeding from /opt/nix-seed"
-  sudo_if_needed cp -a /opt/nix-seed/. /nix/
-}
+# --- Authenticate if remote environment is requested -----------------------
 
-# READ path for an S3-compatible Nix binary cache: add the cache's substituter
-# + trusted public key to /etc/nix/nix.conf (the config flox's bundled Nix
-# reads) so cold activates pull prebuilt paths from the cache instead of
-# upstream. All inputs are non-secret. Adapted from jbayer/flox-buildkite
-# .buildkite/lib/s3-cache-configure.sh.
-configure_s3_cache() {
-  # Plugin key wins; otherwise the pipeline/agent S3_CACHE_* env (same
-  # precedence as floxhub-token → FLOX_TOKEN). Cache identity is cluster-wide
-  # — do not make every step repeat it.
-  local bucket="${BUILDKITE_PLUGIN_FLOX_S3_CACHE_BUCKET:-${S3_CACHE_BUCKET:-}}"
-  [[ -n "$bucket" ]] || return 0
+ENVIRONMENT="${BUILDKITE_PLUGIN_FLOX_ENVIRONMENT:-}"
+FLOXHUB_TOKEN="${BUILDKITE_PLUGIN_FLOX_FLOXHUB_TOKEN:-${FLOX_TOKEN:-}}"
 
-  local endpoint="${BUILDKITE_PLUGIN_FLOX_S3_CACHE_ENDPOINT:-${S3_CACHE_ENDPOINT:-}}"
-  local region="${BUILDKITE_PLUGIN_FLOX_S3_CACHE_REGION:-${S3_CACHE_REGION:-auto}}"
-  local public_key="${BUILDKITE_PLUGIN_FLOX_S3_CACHE_PUBLIC_KEY:-${S3_CACHE_PUBLIC_KEY:-}}"
-  [[ -n "$endpoint" ]] || {
-    echo "+++ :flox: s3-cache-bucket is set but s3-cache-endpoint is missing."
-    exit 1
-  }
-  [[ -n "$public_key" ]] || {
-    echo "+++ :flox: s3-cache-bucket is set but s3-cache-public-key is missing."
-    exit 1
-  }
-  # aws-sdk otherwise probes the (absent) instance-metadata endpoint and stalls.
-  export AWS_EC2_METADATA_DISABLED=true
-
-  # Overridable so rootless agents and tests can point the config anywhere
-  # (e.g. a per-run temp dir); CI and real agents keep the default flox reads.
-  local conf="${FLOX_NIX_CONF:-/etc/nix/nix.conf}"
-  local marker="flox S3 binary cache"
-  local substituter="s3://${bucket}?endpoint=${endpoint}&region=${region}"
-
-  # Create the config (and its parent dir) as the current user when possible,
-  # falling back to root. Ensures `[ -w "$conf" ]` in append() is deterministic.
-  ensure_config_file() {
-    if mkdir -p "$(dirname "$conf")" 2>/dev/null && touch "$conf" 2>/dev/null; then
-      return 0
-    fi
-    sudo_if_needed mkdir -p "$(dirname "$conf")"
-    sudo_if_needed touch "$conf"
-  }
-
-  append() {
-    if [ -w "$conf" ]; then printf '%s\n' "$1" >>"$conf"
-    else sudo_if_needed tee -a "$conf" >/dev/null <<<"$1"; fi
-  }
-
-  if grep -qF "$marker" "$conf" 2>/dev/null; then
-    echo "--- :flox: S3 cache substituter already configured in $conf (no-op)"
-  else
-    echo "+++ :flox: adding S3 cache substituter to $conf"
-    ensure_config_file
-    append ""
-    append "# --- ${marker} -------------------------------------------------------"
-    append "extra-substituters = ${substituter}"
-    append "extra-trusted-public-keys = ${public_key}"
+if [[ -n "$ENVIRONMENT" && -n "$FLOXHUB_TOKEN" ]]; then
+  if ! flox auth status &>/dev/null; then
+    echo "--- :flox: Authenticating with FloxHub"
+    echo "$FLOXHUB_TOKEN" | flox auth login --token-file -
+    flox auth status || { echo "+++ :flox: FloxHub authentication failed"; exit 1; }
   fi
-
-  # Reads of a PRIVATE bucket need the access key. Prefer the job environment;
-  # fall back to Buildkite cluster secrets.
-  if [[ -z "${AWS_ACCESS_KEY_ID:-}" ]] && command -v buildkite-agent &>/dev/null; then
-    export AWS_ACCESS_KEY_ID="$(buildkite-agent secret get S3_CACHE_ACCESS_KEY_ID 2>/dev/null || true)"
-    export AWS_SECRET_ACCESS_KEY="$(buildkite-agent secret get S3_CACHE_SECRET_ACCESS_KEY 2>/dev/null || true)"
-  fi
-
-  echo "--- :flox: effective substituters / trusted keys"
-  if command -v nix &>/dev/null; then
-    nix --extra-experimental-features 'nix-command' config show 2>/dev/null \
-      | grep -E '^(substituters|trusted-public-keys) ' \
-      | sed 's#\?endpoint=[^ ]*##' || true
-  fi
-}
-
-main() {
-  # --- Install flox if missing -----------------------------------------------
-
-  ensure_nix_seeded
-
-  if ! command -v flox &>/dev/null; then
-    echo "--- :flox: Installing flox"
-    install_flox
-    echo "flox $(flox --version) installed"
-  else
-    echo "--- :flox: Using pre-installed flox ($(flox --version 2>/dev/null || echo '?'))"
-    # Pre-installed flox still needs a usable Nix store on cold containers.
-    ensure_nix_usable
-  fi
-
-  # --- Configure S3 binary cache (read path) ---------------------------------
-
-  configure_s3_cache
-
-  # --- Authenticate if remote environment is requested -----------------------
-
-  local environment floxhub_token
-  environment="${BUILDKITE_PLUGIN_FLOX_ENVIRONMENT:-}"
-  floxhub_token="${BUILDKITE_PLUGIN_FLOX_FLOXHUB_TOKEN:-${FLOX_TOKEN:-}}"
-
-  if [[ -n "$environment" && -n "$floxhub_token" ]]; then
-    if ! flox auth status &>/dev/null; then
-      echo "--- :flox: Authenticating with FloxHub"
-      echo "$floxhub_token" | flox auth login --token-file -
-      flox auth status || { echo "+++ :flox: FloxHub authentication failed"; exit 1; }
-    fi
-  fi
-}
-
-# Run main only when executed directly (as Buildkite runs `./hooks/environment`),
-# not when sourced — lets tests load resolve_download_url() etc. in isolation.
-if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-  main
 fi

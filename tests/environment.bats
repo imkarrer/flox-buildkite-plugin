@@ -199,10 +199,11 @@ teardown() {
   unstub flox
 }
 
-# --- resolve_download_url (unit tests; sourced so main() does not execute) ---
+# --- resolve_download_url (unit tests; lib/environment.bash has no top-level
+# orchestration, so sourcing it only defines functions) ---
 
 @test "resolve_download_url builds a versioned deb URL for stable/linux/x86_64" {
-  source "$PWD/hooks/environment"
+  source "$PWD/lib/environment.bash"
   stub uname '-s : echo Linux' '-m : echo x86_64'
 
   run resolve_download_url stable 1.14.0
@@ -214,7 +215,7 @@ teardown() {
 }
 
 @test "resolve_download_url builds an unversioned URL when version is empty" {
-  source "$PWD/hooks/environment"
+  source "$PWD/lib/environment.bash"
   stub uname '-s : echo Linux' '-m : echo aarch64'
 
   run resolve_download_url stable ""
@@ -226,7 +227,7 @@ teardown() {
 }
 
 @test "resolve_download_url builds a macOS pkg URL without checking dpkg/rpm" {
-  source "$PWD/hooks/environment"
+  source "$PWD/lib/environment.bash"
   stub uname '-s : echo Darwin' '-m : echo x86_64'
 
   run resolve_download_url qa 1.14.0
@@ -238,7 +239,7 @@ teardown() {
 }
 
 @test "resolve_download_url routes a commit hash channel through by-commit" {
-  source "$PWD/hooks/environment"
+  source "$PWD/lib/environment.bash"
   stub uname '-s : echo Linux' '-m : echo x86_64'
 
   run resolve_download_url deadbeef 2.0.0
@@ -250,7 +251,7 @@ teardown() {
 }
 
 @test "resolve_download_url fails loudly on an unsupported OS" {
-  source "$PWD/hooks/environment"
+  source "$PWD/lib/environment.bash"
   # `uname -s`/`uname -m` are each captured once upfront, so -m is still
   # called even though the OS check fails first.
   stub uname '-s : echo Windows' '-m : echo x86_64'
@@ -264,7 +265,7 @@ teardown() {
 }
 
 @test "resolve_download_url fails loudly on an unsupported architecture" {
-  source "$PWD/hooks/environment"
+  source "$PWD/lib/environment.bash"
   stub uname '-s : echo Linux' '-m : echo mips'
 
   run resolve_download_url stable ""
