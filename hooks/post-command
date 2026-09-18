@@ -81,4 +81,27 @@ fi
 
 echo "+++ :flox: pushing $(basename "$envpath") + closure to s3://${BUCKET} (signed)"
 nix --extra-experimental-features 'nix-command' copy --to "$S3" "$envpath"
+
+# Every output the lock names, not only what the environment links. The
+# environment's closure carries a package's `out`; flox realises the whole
+# derivation when it activates elsewhere, and a derivation builds all its
+# outputs at once -- so a `dev` output absent from the cache is a full
+# compile on the consuming host, however complete the closure above looked
+# (homelab ac-box, 18 Sep 2026: stable-diffusion-cpp rebuilt for three
+# minutes for a missing -dev). Paths are already valid here (the activation
+# realised them), so this is a copy, never a build.
+lock="$envpath/manifest.lock"
+if [[ -f "$lock" ]]; then
+  outs="$(nix --extra-experimental-features 'nix-command' eval --raw --impure --expr "
+    let l = builtins.fromJSON (builtins.readFile \"$lock\");
+        sys = builtins.currentSystem;
+    in builtins.concatStringsSep \"\\n\" (builtins.concatMap
+         (p: if p.system == sys then builtins.attrValues p.outputs else [])
+         l.packages)" 2>/dev/null || true)"
+  if [[ -n "$outs" ]]; then
+    echo "--- :flox: pushing every lock output ($(wc -l <<<"$outs") paths) too"
+    # shellcheck disable=SC2086
+    nix --extra-experimental-features 'nix-command' copy --to "$S3" $outs
+  fi
+fi
 echo "--- :flox: push complete"
