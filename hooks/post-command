@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
 # WRITE path for the S3 binary cache: push the activated environment's closure

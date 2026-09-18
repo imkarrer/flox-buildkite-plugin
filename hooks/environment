@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
 # Buildkite sources hooks into its own bootstrap shell (that's how a hook's
