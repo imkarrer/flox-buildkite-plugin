@@ -2,12 +2,12 @@
 
 [![Build status](https://badge.buildkite.com/0931aada34b88f39844aa07d32a9b23d1fc4801c999685394f.svg?branch=main)](https://buildkite.com/isaac-karrer/flox-buildkite-plugin)
 
-Run a Buildkite step inside a [Flox](https://flox.dev) environment from the repo (`.flox/`) or FloxHub. If `flox` is missing, the plugin installs it from `downloads.flox.dev`. Pin a tag in the plugin ref — `imkarrer/flox#v1.0.0` — rather than `#main`, so a pipeline doesn't move when this repo does.
+Run a Buildkite step inside a [Flox](https://flox.dev) environment from the repo (`.flox/`) or FloxHub. If `flox` is missing, the plugin installs it from `downloads.flox.dev`. Pin a tag in the plugin ref — `imkarrer/flox#v1.0.2` — rather than `#main`, so a pipeline doesn't move when this repo does.
 
 ```yml
 steps:
   - plugins:
-      - imkarrer/flox#v1.0.0:
+      - imkarrer/flox#v1.0.2:
           command: npm run build
 ```
 
@@ -18,7 +18,7 @@ Local `.flox/` — no auth:
 ```yml
 steps:
   - plugins:
-      - imkarrer/flox#v1.0.0:
+      - imkarrer/flox#v1.0.2:
           command: npm run build
 ```
 
@@ -27,7 +27,7 @@ Subdirectory (monorepo):
 ```yml
 steps:
   - plugins:
-      - imkarrer/flox#v1.0.0:
+      - imkarrer/flox#v1.0.2:
           dir: backend
           command: cargo test
 ```
@@ -37,7 +37,7 @@ Remote FloxHub env — set `FLOX_TOKEN` (or `floxhub-token`) on the agent or pip
 ```yml
 steps:
   - plugins:
-      - imkarrer/flox#v1.0.0:
+      - imkarrer/flox#v1.0.2:
           environment: my-org/netlify-deploy
           command: netlify deploy
 ```
@@ -85,7 +85,7 @@ env:
 
 steps:
   - plugins:
-      - imkarrer/flox#v1.0.0:
+      - imkarrer/flox#v1.0.2:
           command: npm test
 ```
 
