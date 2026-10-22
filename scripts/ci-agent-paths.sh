@@ -64,6 +64,22 @@ docker_run() {
   docker run --rm "${mount_args[@]}" "${docker_opts[@]}" "$image" "${cmd[@]}"
 }
 
+# Sets seed_args to the `docker build` flags that bake SEED_PACKAGES=hello.
+# Seeding runs `flox install`, which needs a FloxHub token (FLOX_TOKEN in the
+# job env or a Buildkite secret). Without one, build an unseeded image.
+seed_build_args() {
+  seed_args=()
+  if [[ -z "${FLOX_TOKEN:-}" ]] && command -v buildkite-agent &>/dev/null; then
+    FLOX_TOKEN="$(buildkite-agent secret get FLOX_TOKEN 2>/dev/null || true)"
+  fi
+  if [[ -n "${FLOX_TOKEN:-}" ]]; then
+    export FLOX_TOKEN
+    seed_args=(--secret id=flox_token,env=FLOX_TOKEN --build-arg SEED_PACKAGES=hello)
+  else
+    echo "--- :warning: no FLOX_TOKEN; building without SEED_PACKAGES"
+  fi
+}
+
 case "$mode" in
   cold)
     echo "--- :flox: cold start on stock Ubuntu agent (no flox on PATH)"
@@ -87,10 +103,11 @@ EOF
 )"
     ;;
   image)
+    seed_build_args
     echo "--- :docker: build pre-baked agent image"
     docker build -t flox-buildkite-plugin:ci \
       --build-arg FLOX_VERSION=1.14.0 \
-      --build-arg SEED_PACKAGES=hello \
+      "${seed_args[@]}" \
       .
     echo "--- :docker: image has flox, nix seed, daemon entrypoint"
     docker run --rm --entrypoint bash flox-buildkite-plugin:ci -ec '
@@ -121,8 +138,9 @@ EOF
     tag="${BUILDKITE_TAG:?publish requires a tag build (BUILDKITE_TAG unset)}"
     image="ferahgo/flox-buildkite-agent"
 
+    seed_build_args
     echo "--- :docker: build ${image}:${tag}"
-    docker build -t "${image}:${tag}" -t "${image}:latest" .
+    docker build -t "${image}:${tag}" -t "${image}:latest" "${seed_args[@]}" .
 
     if [[ -z "${DOCKERHUB_TOKEN:-}" ]] && command -v buildkite-agent &>/dev/null; then
       DOCKERHUB_TOKEN="$(buildkite-agent secret get DOCKERHUB_TOKEN 2>/dev/null || true)"

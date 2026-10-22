@@ -124,6 +124,13 @@ Or build it yourself, e.g. to change `SEED_PACKAGES` or bake your own S3 cache s
 docker build -t your-registry/flox-buildkite-agent:latest .
 ```
 
+`SEED_PACKAGES` is empty by default. Seeding runs `flox install`, which needs a FloxHub token, passed as a BuildKit secret:
+
+```bash
+docker build --secret id=flox_token,env=FLOX_TOKEN \
+  --build-arg SEED_PACKAGES="nodejs python3" -t your-registry/flox-buildkite-agent:latest .
+```
+
 `ferahgo/flox-buildkite-agent` is published from `.buildkite/pipeline.yml`'s `publish` step, which runs only on tag builds (`if: build.tag != null`) and needs a `DOCKERHUB_TOKEN` Buildkite secret on the `self` queue.
 
 ## Developing

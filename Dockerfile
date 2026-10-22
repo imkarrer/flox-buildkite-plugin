@@ -42,7 +42,10 @@ ENV NIX_REMOTE=auto
 
 # Make the store usable by whatever user the agent runs jobs as. Buildkite
 # forbids changing USER/UID/GID, so we can't chown to a user we create.
-RUN chmod -R a+rwX /nix
+# Nix refuses to build if its state dir or any parent is world-writable
+# ("Path ... is world-writable or a symlink"), so take o+w back off those.
+RUN chmod -R a+rwX /nix \
+    && chmod o-w /nix /nix/var /nix/var/nix
 
 # --- Optional: bake an S3 binary-cache READ path into the image ---------------
 # Same idea as jbayer/flox-buildkite's agent image: the substituter pointer is
@@ -67,15 +70,28 @@ RUN set -eux; \
 
 # --- Optional: seed common packages into the store -----------------------------
 # Packages baked into the Nix store at build time so cold builds don't re-download
-# them. Edit the SEED_PACKAGES default below — a space-separated list of Flox
-# pkg-paths, e.g. "nodejs python3 go". Set to "" to bake nothing beyond flox.
-# `hello` mirrors the CI smoke-test sentinel in examples/hello/.flox.
+# them. SEED_PACKAGES is a space-separated list of Flox pkg-paths, e.g.
+# "nodejs python3 go". Empty (the default) bakes nothing beyond flox.
 # A baked package only yields a runtime cache hit when a project env resolves to
 # the SAME store path (same version, same catalog) — bake the versions your
 # projects actually use.
-ARG SEED_PACKAGES="hello"
-RUN set -eux; \
+#
+# `flox install` resolves against the FloxHub catalog, which requires a login.
+# Pass a token as a BuildKit secret; it is read via FLOX_FLOXHUB_TOKEN for this
+# RUN only and never written into an image layer:
+#   docker build --secret id=flox_token,env=FLOX_TOKEN \
+#     --build-arg SEED_PACKAGES="hello" .
+ARG SEED_PACKAGES=""
+RUN --mount=type=secret,id=flox_token \
+    set -eu; \
     if [ -n "$SEED_PACKAGES" ]; then \
+        if [ ! -s /run/secrets/flox_token ]; then \
+          echo "SEED_PACKAGES needs a FloxHub token: docker build --secret id=flox_token,env=FLOX_TOKEN ..." >&2; \
+          exit 1; \
+        fi; \
+        FLOX_FLOXHUB_TOKEN="$(cat /run/secrets/flox_token)"; \
+        export FLOX_FLOXHUB_TOKEN; \
+        set -x; \
         mkdir -p /opt/seed-env; \
         cd /opt/seed-env; \
         flox init; \
