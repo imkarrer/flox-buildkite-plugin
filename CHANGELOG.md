@@ -3,6 +3,16 @@
 All notable changes to this plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Fixed
+
+- Agent image build: `flox install` now needs a FloxHub login, so the
+  `SEED_PACKAGES` step failed. `SEED_PACKAGES` defaults to empty; to seed,
+  pass a token as a BuildKit secret (`--secret id=flox_token,env=FLOX_TOKEN`).
+- Agent image: `/nix`, `/nix/var` and `/nix/var/nix` are no longer
+  world-writable, which Nix refuses when it has to build an environment.
+
 ## [1.0.3] - 2026-10-20
 
 Pin `imkarrer/flox#v1.0.3`.
